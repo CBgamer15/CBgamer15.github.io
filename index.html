@@ -1,83 +1,53 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        
-<title>My Blog</title>
-<link rel="stylesheet" type="text/css" href="styles.css">
-    </head>
-    <body>
-        
-<div id="header">
-    <div class="container">
-        <a id="header-title" href="index.html">My Blog</a>
-
-
-        <ul id="header-nav">
-            <li><a href="about.html">About</a></li>
-            <li>
-                <a href="CBgamer15Niga120@gmail.com">Contact</a></li>
-        </ul>
-
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hunter's Journal</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+<header>
+  <h1>Hunter's Journal</h1>
+  <div id="xp-bar"><div id="xp-progress"></div></div>
+  <div id="rank-display">Rank: E (Level 1)</div>
+  <div id="daily-indicator" class="red">Behind Schedule</div>
+</header>
+<main>
+  <section id="categories">
+    <h2>Categories</h2>
+    <ul id="category-list"></ul>
+    <input id="new-category" placeholder="New category">
+    <button id="add-category">Add Category</button>
+  </section>
+  <section id="quests">
+    <h2>Quests</h2>
+    <ul id="quest-list"></ul>
+    <div class="add-quest">
+      <input id="quest-name" placeholder="Quest name">
+      <select id="quest-category"></select>
+      <input id="quest-xp" type="number" placeholder="XP">
+      <select id="quest-type">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+      </select>
+      <button id="add-quest">Add Quest</button>
     </div>
-</div>
+  </section>
+  <section id="achievements">
+    <h2>Achievements</h2>
+    <ul id="achievement-list"></ul>
+  </section>
+</main>
 
-<div id="content">
-    <!-- another post -->
-    <div class="post-container">
-        <div class="post">
-            <div class="post-author">
-                <img src="me.png">
-                <span>Me</span>
-            </div>
-            <p class="post-date">Today</p>
-            <h3 class="post-title">Becoming a web developer</h3>
-              <div class="post-content">
-                  <p> If Somebody would have told me a week a go that i would be able to make a <strong>website</strong>, I would not have belived them.</p>
-                  <p>Just a fwe days later, I came across <a href="https://getmimo.com/">Mimo</a> and started to work on a <em>real</em>blog.</p>
-              </div>
-        </div>
+<section id="class-selection" class="modal hidden">
+  <div class="modal-content">
+    <h2>Select your Class</h2>
+    <div id="class-options"></div>
+  </div>
+</section>
 
-    </div>
-</div>
-
-<div id="content">
-    <div class="post-container">
-        <div class="post">
-            <div class="post-author">
-                <img src="mom.png">
-                <span>My Mom</span>
-            </div>
-            <p class="post-date">Today</p>
-            <h4 class="post-title">Is my child a prodigy?</h4>
-              <div class="post-content">
-                  <p> If Somebody would have told me a week a go that i would be able to make a <strong>website</strong>, I would not have belived them.</p>
-                  <p>Just a fwe days later, I came across <a href="https://getmimo.com/">Mimo</a> and started to work on a <em>real</em>blog.</p>
-              </div>
-        </div>
-
-    </div>
-</div>
-
-<div id="footer">
-    <div class="container">
-
-        <div class="column">
-            <h4>My Links</h4>
-            <p>
-                <a href="https://twitter.com/Carlos_Borges98">Twitter</a>
-                <br>
-                <a href="https://www.facebook.com/carlos.borges.165/">Facebook</a>
-            </p>
-        </div>
-        
-    <div class="column">
-        <h4>My Story</h4>
-        <p>Hi There! I´m an aspiring web developer.</p>
-
-    </div>
-    </div>
-
-</div>
-
-    </body>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('service-worker.js');}</script>
+<script src="app.js"></script>
+</body>
 </html>
