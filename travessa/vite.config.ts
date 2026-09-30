@@ -10,16 +10,9 @@ export default defineConfig({
   },
   build: {
     // The lazy 3D chunk (three + r3f + drei) is ~1 MB raw / ~290 kB gzip and loads only on request.
+    // No manualChunks: forcing a "three" chunk made the bundler pull shared code (React) into it,
+    // so the menu preloaded the whole 3D stack. The dynamic imports split it correctly on their own.
     chunkSizeWarningLimit: 1200,
-    rollupOptions: {
-      output: {
-        // Keep the 3D stack out of the menu's critical path.
-        manualChunks(id: string) {
-          if (id.includes('node_modules/three') || id.includes('@react-three')) return 'three'
-          if (id.includes('@supabase')) return 'supabase'
-        },
-      },
-    },
   },
   test: {
     environment: 'jsdom',
