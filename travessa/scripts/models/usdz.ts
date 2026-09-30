@@ -152,28 +152,48 @@ export function bakeVertexColors(geo: THREE.BufferGeometry, size: number): Pixel
   return new PixelCanvas(size, size, rgba)
 }
 
-/** Copy of the object with vertex colours baked to textures, ready for Quick Look. */
-function texturedClone(object: THREE.Object3D, textureSize: (mesh: THREE.Mesh) => number): THREE.Object3D {
-  const copy = object.clone(true)
-  copy.traverse((o) => {
-    const mesh = o as THREE.Mesh
-    if (!mesh.isMesh) return
-    const src = mesh.material as THREE.MeshStandardMaterial
-    if (!src.vertexColors) {
-      mesh.material = new THREE.MeshStandardMaterial({ color: src.color, roughness: src.roughness, metalness: 0 })
+const meshesOf = (o: THREE.Object3D) => {
+  const out: THREE.Mesh[] = []
+  o.traverse((x) => (x as THREE.Mesh).isMesh && out.push(x as THREE.Mesh))
+  return out
+}
+
+/**
+ * Quick Look copy of a dish: geometry from `light` (fewer vertices → a small
+ * USDZ that downloads fast), colour baked from the matching full-detail mesh
+ * in `detailed`. Both are built from the same parametric UVs, so the texture
+ * from one lines up on the other.
+ */
+function texturedClone(detailed: THREE.Object3D, light: THREE.Object3D, textureSize: (mesh: THREE.Mesh) => number): THREE.Object3D {
+  const copy = light.clone(true)
+  const sources = meshesOf(detailed)
+  const targets = meshesOf(copy)
+  if (sources.length !== targets.length) throw new Error('detailed and light models must have the same meshes')
+  targets.forEach((mesh, i) => {
+    const src = sources[i]
+    const mat = src.material as THREE.MeshStandardMaterial
+    if (!mat.vertexColors) {
+      mesh.material = new THREE.MeshStandardMaterial({ color: mat.color, roughness: mat.roughness, metalness: 0 })
       return
     }
-    const texture = new THREE.Texture(bakeVertexColors(mesh.geometry, textureSize(mesh)) as unknown as HTMLCanvasElement)
+    const texture = new THREE.Texture(bakeVertexColors(src.geometry, textureSize(src)) as unknown as HTMLCanvasElement)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.flipY = true
-    mesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: src.roughness, metalness: 0 })
+    // The colour lives in the texture now; per-vertex colours would only add size.
+    mesh.geometry = mesh.geometry.clone()
+    mesh.geometry.deleteAttribute('color')
+    mesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: mat.roughness, metalness: 0 })
   })
   return copy
 }
 
-export async function exportUsdz(object: THREE.Object3D, textureSize: (mesh: THREE.Mesh) => number = () => 512): Promise<Uint8Array> {
+export async function exportUsdz(
+  detailed: THREE.Object3D,
+  light: THREE.Object3D,
+  textureSize: (mesh: THREE.Mesh) => number = () => 512,
+): Promise<Uint8Array> {
   const scene = new THREE.Scene()
-  scene.add(texturedClone(object, textureSize))
+  scene.add(texturedClone(detailed, light, textureSize))
   // Nothing has rendered in Node, so local/world matrices were never computed.
   scene.updateMatrixWorld(true)
   const exporter = new USDZExporter()

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Dish } from '@/domain/types'
 import { IconAr, IconClose } from '@/components/icons'
@@ -34,6 +34,23 @@ export function ArButton({ dish }: { dish: Dish }) {
   const mode = detectArMode(env)
   const needsSafari = iosNeedsSafari(env)
   const model = dish.model
+
+  // iPhone: once the guest opens a dish that has AR, fetch its USDZ quietly in the
+  // background so Quick Look opens straight away when they tap. Only on iOS Safari
+  // and only for the dish they are looking at; the menu itself still loads no 3D.
+  const usdz = mode === 'quicklook' && !needsSafari ? model?.usdzUrl : undefined
+  useEffect(() => {
+    if (!usdz) return
+    const ctrl = new AbortController()
+    const id = window.setTimeout(() => {
+      void fetch(usdz, { signal: ctrl.signal, cache: 'force-cache' }).catch(() => undefined)
+    }, 400)
+    return () => {
+      window.clearTimeout(id)
+      ctrl.abort()
+    }
+  }, [usdz])
+
   if (!model) return null
 
   const onOpen = () => track('ar_view', dish.id)

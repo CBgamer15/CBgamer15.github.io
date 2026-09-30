@@ -84,8 +84,13 @@ function displace(geo: THREE.BufferGeometry, fn: (p: THREE.Vector3) => THREE.Vec
   geo.computeVertexNormals()
 }
 
+// Mesh density. 1 = full detail (GLB for the web viewer); lower builds the light
+// iPhone AR copy. UVs are parametric, so textures line up across detail levels.
+let DETAIL = 1
+const seg = (n: number) => Math.max(8, Math.round(n * DETAIL))
+
 const lathe = (pts: [number, number][], segments = 160) =>
-  new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segments)
+  new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg(segments))
 
 function plate(radius = 0.12, color = '#f4f1ea') {
   const r = radius
@@ -130,7 +135,7 @@ function pastelDeNata() {
   group.add(shellMesh)
 
   // Custard top with caramelised blisters: a dense polar grid carries the colour detail.
-  const rings = 60, segs = 192
+  const rings = seg(60), segs = seg(192)
   const verts: number[] = [], uvs: number[] = [], idx: number[] = []
   for (let i = 0; i <= rings; i++)
     for (let j = 0; j <= segs; j++) {
@@ -197,7 +202,7 @@ function pudim() {
   group.add(flanMesh)
 
   // Irregular pool of caramel on the plate.
-  const pool = new THREE.CircleGeometry(0.058, 160)
+  const pool = new THREE.CircleGeometry(0.058, seg(160))
   pool.rotateX(-Math.PI / 2)
   displace(pool, (p) => {
     const a = Math.atan2(p.z, p.x)
@@ -214,7 +219,7 @@ function pudim() {
 
 // --- Pastéis de bacalhau ----------------------------------------------------
 function pastelDeBacalhau(seed: number) {
-  const geo = new THREE.SphereGeometry(0.018, 64, 40)
+  const geo = new THREE.SphereGeometry(0.018, seg(64), seg(40))
   displace(geo, (p) => {
     // Quenelle: long, pointed ends, flat underside.
     const q = p.clone()
@@ -274,8 +279,13 @@ function pasteisDeBacalhau() {
 // --- export -----------------------------------------------------------------
 // GLB: web viewer + Android Scene Viewer (vertex colours).
 // USDZ: iPhone AR Quick Look (colours baked to textures). Both in metres = real size.
-async function exportModel(name: string, object: THREE.Object3D) {
-  const usdz = await exportUsdz(object, (mesh) => (mesh.name === 'creme' ? 1024 : 512))
+async function exportModel(name: string, build: () => THREE.Object3D) {
+  DETAIL = 1
+  const object = build()
+  DETAIL = 0.4
+  const light = build()
+  DETAIL = 1
+  const usdz = await exportUsdz(object, light, (mesh) => (mesh.name === 'creme' ? 640 : 512))
   writeFileSync(new URL(`../../public/models/${name}.usdz`, import.meta.url), usdz)
 
   const scene = new THREE.Scene()
@@ -287,6 +297,6 @@ async function exportModel(name: string, object: THREE.Object3D) {
 }
 
 mkdirSync(new URL('../../public/models/', import.meta.url), { recursive: true })
-await exportModel('pastel-de-nata', pastelDeNata())
-await exportModel('pudim-abade-de-priscos', pudim())
-await exportModel('pasteis-de-bacalhau', pasteisDeBacalhau())
+await exportModel('pastel-de-nata', pastelDeNata)
+await exportModel('pudim-abade-de-priscos', pudim)
+await exportModel('pasteis-de-bacalhau', pasteisDeBacalhau)
