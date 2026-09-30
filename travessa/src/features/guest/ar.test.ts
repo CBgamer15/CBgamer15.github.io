@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectArMode, dishLink, iosNeedsSafari, quickLookHref, sceneViewerHref } from './ar'
+import { detectArMode, dishLink, iosNeedsSafari, quickLookHref, safariHandoffUrl, sceneViewerHref } from './ar'
 
 const UA = {
   iphoneSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1',
@@ -55,6 +55,10 @@ describe('AR links', () => {
     expect(query.get('title')).toBe('Pastel de nata')
     expect(href).toContain('package=com.google.android.googlequicksearchbox')
     expect(href.endsWith(`S.browser_fallback_url=${encodeURIComponent('https://example.pt/m/casa-do-mar')};end;`)).toBe(true)
+  })
+
+  it('builds the iOS "open in Safari" link', () => {
+    expect(safariHandoffUrl('https://travessa-ebon.vercel.app/m/casa-do-mar?prato=d1')).toBe('x-safari-https://travessa-ebon.vercel.app/m/casa-do-mar?prato=d1')
   })
 
   it('deep-links a dish, keeping the table when there is one', () => {
