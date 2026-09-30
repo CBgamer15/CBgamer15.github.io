@@ -7,6 +7,9 @@ import { useGuest } from './GuestContext'
 
 // The QR library is only needed on a laptop, so it stays out of the phone's menu bundle.
 const QrCode = lazy(() => import('@/components/QrCode').then((m) => ({ default: m.QrCode })))
+// In-page camera view (Three.js): fetched only when a guest taps "Ver na minha mesa".
+const loadCameraAr = () => import('@/features/three/CameraAr')
+const CameraAr = lazy(loadCameraAr)
 
 // Full-screen panels render on <body>: inside the dish sheet (which animates with a
 // transform) "fixed" would be clipped to the sheet and the dish would show through.
@@ -30,6 +33,7 @@ export function ArButton({ dish }: { dish: Dish }) {
   const [handoff, setHandoff] = useState(false)
   const [safariHint, setSafariHint] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [camera, setCamera] = useState<{ gyro: boolean } | null>(null)
   const env = useMemo(currentEnv, [])
   const mode = detectArMode(env)
   const needsSafari = iosNeedsSafari(env)
@@ -77,14 +81,50 @@ export function ArButton({ dish }: { dish: Dish }) {
     )
     if (!needsSafari) return quickLook(pill, t.viewAr)
 
-    // Inside another app's browser (or Chrome on iOS): explain how to get to Safari.
+    // Chrome, Brave and in-app browsers on iOS can't reach Quick Look: open the
+    // in-page camera view instead. Permissions must be requested inside the tap.
     const link = dishLink(menu.restaurant.slug, tableToken, dish.id)
+    const openCamera = async () => {
+      onOpen()
+      let gyro: boolean
+      const req = (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission
+      try {
+        gyro = req ? (await req()) === 'granted' : 'DeviceOrientationEvent' in window
+      } catch {
+        gyro = false
+      }
+      setCamera({ gyro })
+    }
     return (
       <>
-        <button type="button" onClick={() => setSafariHint(true)} className={pill}>
+        <button type="button" onPointerDown={() => void loadCameraAr()} onClick={openCamera} className={pill}>
           <IconAr width={18} height={18} />
           {t.viewAr}
         </button>
+        {camera &&
+          createPortal(
+            <Suspense fallback={<div className="fixed inset-0 z-[80] grid place-items-center bg-black text-sm text-white">{t.camLoading}</div>}>
+              <CameraAr
+                model={model}
+                gyro={camera.gyro}
+                labels={{ hint: t.camHint, noCamera: t.camNoCamera, loading: t.camLoading, close: 'Fechar', fullAr: t.camFullAr }}
+                onClose={() => setCamera(null)}
+                footer={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCamera(null)
+                      setSafariHint(true)
+                    }}
+                    className="rounded-full bg-black/55 px-4 py-2 text-xs text-white underline-offset-4 backdrop-blur"
+                  >
+                    {t.camFullAr}
+                  </button>
+                }
+              />
+            </Suspense>,
+            document.body,
+          )}
         {safariHint && (
           <Overlay label={t.arSafariTitle} onClose={() => setSafariHint(false)}>
             <div className="max-w-xs">
