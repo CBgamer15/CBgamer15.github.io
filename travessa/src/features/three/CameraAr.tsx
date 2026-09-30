@@ -4,6 +4,7 @@ import { ContactShadows, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { DishModel } from '@/domain/types'
 import { currentCameraPose, nearTable, PlaneTracker, poseFromHomography, tableInCamera, type Intrinsics } from './planeTracker'
+import { PoseFilter } from './poseFilter'
 
 // "Ver na minha mesa" for browsers that can't reach AR Quick Look (Chrome, Brave
 // and in-app browsers on iOS). The phone's camera is the background and the dish
@@ -18,9 +19,7 @@ const TABLE_Y = -TABLE_DROP
 /** Field of view of a phone's main camera along the long side of the video, approximate. */
 const VIDEO_LONG_FOV = THREE.MathUtils.degToRad(64)
 /** Short side of the image the tracker works on, in pixels. */
-const PROCESS_SIZE = 240
-/** How far each frame moves toward the tracked pose (smooths jitter). */
-const SMOOTHING = 0.7
+const PROCESS_SIZE = 320
 
 export interface OrientationSample {
   alpha: number
@@ -62,7 +61,8 @@ function pointOnTable(origin: THREE.Vector3, dir: THREE.Vector3, out: THREE.Vect
   return out.set(origin.x + flat.x, TABLE_Y, origin.z + flat.z)
 }
 
-export type TrackState = 'aiming' | 'tracking' | 'lost' | 'flat'
+/** 'starting' until the dish is on screen and can be placed. */
+export type TrackState = 'starting' | 'aiming' | 'tracking' | 'lost' | 'flat'
 
 interface SceneProps {
   model: DishModel
@@ -74,45 +74,106 @@ interface SceneProps {
   onTrack: (state: TrackState) => void
 }
 
-/** Grabs downscaled video frames for the tracker. */
-class FrameGrabber {
+/**
+ * Watches for new camera frames and hands out downscaled copies for the tracker.
+ * Everything (tracking, the background image, the dish) moves on at the pace of the
+ * camera, one frame at a time, so the dish can't drift out of step with the picture.
+ */
+class FrameSource {
   private canvas = document.createElement('canvas')
   private ctx = this.canvas.getContext('2d', { willReadFrequently: true })
   width = 0
   height = 0
+  /** Seconds between the last two frames. */
+  dt = 1 / 30
+  private pending = false
   private lastTime = -1
+  private handle = 0
+  private video: HTMLVideoElement
+  /** requestVideoFrameCallback is missing in older browsers. */
+  private callbacks: boolean
 
-  /** Returns the frame's pixels, or null if the video has no new frame. */
-  grab(video: HTMLVideoElement): Uint8ClampedArray | null {
-    if (!this.ctx || video.readyState < 2 || !video.videoWidth) return null
-    if (video.currentTime === this.lastTime) return null
-    this.lastTime = video.currentTime
-    const s = PROCESS_SIZE / Math.min(video.videoWidth, video.videoHeight)
-    const w = Math.round(video.videoWidth * s)
-    const h = Math.round(video.videoHeight * s)
+  constructor(video: HTMLVideoElement) {
+    this.video = video
+    this.callbacks = typeof video.requestVideoFrameCallback === 'function'
+    if (this.callbacks) {
+      const onFrame: VideoFrameRequestCallback = (_, meta) => {
+        if (this.lastTime >= 0) this.dt = THREE.MathUtils.clamp(meta.mediaTime - this.lastTime, 1 / 120, 0.25)
+        this.lastTime = meta.mediaTime
+        this.pending = true
+        this.handle = video.requestVideoFrameCallback(onFrame)
+      }
+      this.handle = video.requestVideoFrameCallback(onFrame)
+    }
+  }
+
+  dispose() {
+    if (this.callbacks) this.video.cancelVideoFrameCallback(this.handle)
+  }
+
+  /** True once per new camera frame. */
+  next(): boolean {
+    const v = this.video
+    if (v.readyState < 2 || !v.videoWidth) return false
+    if (this.callbacks) {
+      if (!this.pending) return false
+      this.pending = false
+      return true
+    }
+    // No frame callbacks: fall back to the playback clock.
+    if (v.currentTime === this.lastTime) return false
+    if (this.lastTime >= 0) this.dt = THREE.MathUtils.clamp(v.currentTime - this.lastTime, 1 / 120, 0.25)
+    this.lastTime = v.currentTime
+    return true
+  }
+
+  /** The current frame, downscaled, as RGBA pixels. */
+  pixels(): Uint8ClampedArray | null {
+    const v = this.video
+    if (!this.ctx) return null
+    const s = PROCESS_SIZE / Math.min(v.videoWidth, v.videoHeight)
+    const w = Math.round(v.videoWidth * s)
+    const h = Math.round(v.videoHeight * s)
     if (w !== this.width || h !== this.height) {
       this.canvas.width = this.width = w
       this.canvas.height = this.height = h
     }
-    this.ctx.drawImage(video, 0, 0, w, h)
+    this.ctx.drawImage(v, 0, 0, w, h)
     return this.ctx.getImageData(0, 0, w, h).data
   }
 }
 
 function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: SceneProps) {
-  const { scene } = useGLTF(model.glbUrl)
-  const { camera, gl, size } = useThree()
+  const { scene: dish } = useGLTF(model.glbUrl)
+  const { camera, gl, size, scene } = useThree()
   const group = useRef<THREE.Group>(null)
   const scale = useRef(model.scale)
   const placedFor = useRef(0)
-  const state = useRef<TrackState>('aiming')
+  const state = useRef<TrackState>('starting')
+  /** The aiming pose has been set at least once (the dish can't be placed before). */
+  const aimed = useRef(false)
   const tracker = useRef<PlaneTracker | null>(null)
-  const grabber = useRef<FrameGrabber | null>(null)
+  const source = useRef<FrameSource | null>(null)
+  const filter = useRef(new PoseFilter())
   const K = useRef<Intrinsics>({ f: 1, cx: 0, cy: 0 })
   const ref = useRef({ q: new THREE.Quaternion(), p: new THREE.Vector3(), n: new THREE.Vector3(), d: 1 })
   const good = useRef({ q: new THREE.Quaternion(), gyro: new THREE.Quaternion(), hasGyro: false })
   const retryIn = useRef(0)
   const scratch = useRef({ q: new THREE.Quaternion(), p: new THREE.Vector3(), g: new THREE.Quaternion() })
+
+  // The camera picture is drawn by WebGL as the scene background, in the same render
+  // as the dish posed from that frame, so the table and the dish always move together.
+  const background = useRef<THREE.VideoTexture | null>(null)
+  useEffect(
+    () => () => {
+      scene.background = null
+      background.current?.dispose()
+      background.current = null
+      source.current?.dispose()
+      source.current = null
+    },
+    [scene],
+  )
 
   const setState = (s: TrackState) => {
     if (state.current === s) return
@@ -186,61 +247,79 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
   useFrame(({ clock }) => {
     const cam = camera as THREE.PerspectiveCamera
     const v = video.current
-    const s = scratch.current
+    const sc = scratch.current
+    group.current?.scale.setScalar(scale.current)
+    if (!v) return
+    const src = (source.current ??= new FrameSource(v))
+    // Nothing new from the camera: keep showing the last frame and pose as they are.
+    if (!src.next()) return
 
-    // Match the 3D camera to the phone camera as the video is shown (cropped to fill the screen).
-    if (v?.videoWidth) {
-      const fVideo = Math.max(v.videoWidth, v.videoHeight) / 2 / Math.tan(VIDEO_LONG_FOV / 2)
-      const cover = Math.max(size.width / v.videoWidth, size.height / v.videoHeight)
-      const fov = THREE.MathUtils.radToDeg(2 * Math.atan(size.height / cover / 2 / fVideo))
-      if (Math.abs(cam.fov - fov) > 0.01) {
-        cam.fov = fov
-        cam.updateProjectionMatrix()
-      }
+    // Show this frame, cropped like object-fit: cover, and match the 3D camera to it.
+    let bg = background.current
+    if (!bg) {
+      bg = background.current = new THREE.VideoTexture(v)
+      bg.colorSpace = THREE.SRGBColorSpace
+      scene.background = bg
+    }
+    const videoAspect = v.videoWidth / v.videoHeight
+    const screenAspect = size.width / size.height
+    if (videoAspect > screenAspect) {
+      bg.repeat.set(screenAspect / videoAspect, 1)
+      bg.offset.set((1 - bg.repeat.x) / 2, 0)
+    } else {
+      bg.repeat.set(1, videoAspect / screenAspect)
+      bg.offset.set(0, (1 - bg.repeat.y) / 2)
+    }
+    const fVideo = Math.max(v.videoWidth, v.videoHeight) / 2 / Math.tan(VIDEO_LONG_FOV / 2)
+    const cover = Math.max(size.width / v.videoWidth, size.height / v.videoHeight)
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(size.height / cover / 2 / fVideo))
+    if (Math.abs(cam.fov - fov) > 0.01) {
+      cam.fov = fov
+      cam.updateProjectionMatrix()
     }
 
     // Gyroscope reading, if any. No data after a moment (denied, or no sensor): fixed pose.
     const o = orientation.current
-    const gyroQ = gyro && o ? orientationQuaternion(s.g, o, screenAngle()) : null
+    const gyroQ = gyro && o ? orientationQuaternion(sc.g, o, screenAngle()) : null
     const noGyro = !gyroQ && (!gyro || clock.elapsedTime > 1.2)
 
-    if (!placeKey) {
+    if (!placeKey || !aimed.current) {
       // Aiming: the dish sits where the centre of the screen meets the table.
       placedFor.current = 0
       tracker.current?.stop()
-      setState('aiming')
       cam.position.set(0, 0, 0)
       if (gyroQ) cam.quaternion.copy(gyroQ)
       else if (noGyro) cam.quaternion.copy(STATIC_POSE)
-      else return
+      else return // waiting for the first gyroscope reading
       const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion)
-      group.current?.position.copy(pointOnTable(cam.position, dir, s.p))
-      group.current?.scale.setScalar(scale.current)
-      return
+      group.current?.position.copy(pointOnTable(cam.position, dir, sc.p))
+      aimed.current = true
+      if (!placeKey) {
+        setState('aiming')
+        return
+      }
     }
 
-    group.current?.scale.setScalar(scale.current)
-    if (!v) return
-    const grab = (grabber.current ??= new FrameGrabber())
-    const frame = grab.grab(v)
+    const frame = src.pixels()
     if (!frame) return
-    if (!tracker.current || tracker.current.width !== grab.width || tracker.current.height !== grab.height) {
-      tracker.current = new PlaneTracker(grab.width, grab.height)
+    if (!tracker.current || tracker.current.width !== src.width || tracker.current.height !== src.height) {
+      tracker.current = new PlaneTracker(src.width, src.height)
     }
-    const scaleToProcess = Math.min(grab.width, grab.height) / Math.min(v.videoWidth, v.videoHeight)
-    K.current = {
-      f: (Math.max(v.videoWidth, v.videoHeight) / 2 / Math.tan(VIDEO_LONG_FOV / 2)) * scaleToProcess,
-      cx: grab.width / 2,
-      cy: grab.height / 2,
+    const scaleToProcess = Math.min(src.width, src.height) / Math.min(v.videoWidth, v.videoHeight)
+    K.current = { f: fVideo * scaleToProcess, cx: src.width / 2, cy: src.height / 2 }
+
+    const remember = () => {
+      good.current.q.copy(cam.quaternion)
+      good.current.hasGyro = Boolean(gyroQ)
+      if (gyroQ) good.current.gyro.copy(gyroQ)
     }
 
     // Just placed: this frame becomes the reference.
     if (placedFor.current !== placeKey) {
       placedFor.current = placeKey
+      filter.current.reset()
       const ok = startTracking(frame)
-      good.current.q.copy(cam.quaternion)
-      good.current.hasGyro = Boolean(gyroQ)
-      if (gyroQ) good.current.gyro.copy(gyroQ)
+      remember()
       setState(ok ? 'tracking' : 'flat')
       retryIn.current = 10
       return
@@ -250,12 +329,11 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
     const H = t.tracking ? t.update(frame, nearTable(K.current, cam.quaternion, cam.position, TABLE_Y)) : null
     const rel = H && poseFromHomography(H, K.current, ref.current.n, ref.current.d)
     if (rel) {
-      currentCameraPose(ref.current.q, ref.current.p, rel, s.q, s.p)
-      cam.position.lerp(s.p, SMOOTHING)
-      cam.quaternion.slerp(s.q, SMOOTHING)
-      good.current.q.copy(cam.quaternion)
-      good.current.hasGyro = Boolean(gyroQ)
-      if (gyroQ) good.current.gyro.copy(gyroQ)
+      currentCameraPose(ref.current.q, ref.current.p, rel, sc.q, sc.p)
+      const f = filter.current.update(sc.p, sc.q, src.dt)
+      cam.position.copy(f.position)
+      cam.quaternion.copy(f.quaternion)
+      remember()
       setState('tracking')
       return
     }
@@ -266,13 +344,12 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
       const delta = good.current.gyro.clone().invert().multiply(gyroQ)
       cam.quaternion.copy(good.current.q).multiply(delta)
     }
+    filter.current.reset()
     if (state.current === 'tracking') setState('lost')
     if (--retryIn.current <= 0) {
       retryIn.current = 10
       if (startTracking(frame)) {
-        good.current.q.copy(cam.quaternion)
-        good.current.hasGyro = Boolean(gyroQ)
-        if (gyroQ) good.current.gyro.copy(gyroQ)
+        remember()
         setState('tracking')
       }
     }
@@ -280,7 +357,7 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
 
   return (
     <group ref={group} position={[0, TABLE_Y, -0.45]}>
-      <primitive object={scene} />
+      <primitive object={dish} />
       <ContactShadows position={[0, 0.0005, 0]} opacity={0.55} scale={0.35} blur={2} far={0.12} resolution={256} />
     </group>
   )
@@ -329,7 +406,7 @@ export default function CameraAr({
   const orientation = useRef<OrientationSample | null>(null)
   const [camState, setCamState] = useState<'starting' | 'on' | 'failed'>('starting')
   const [placeKey, setPlaceKey] = useState(0)
-  const [track, setTrack] = useState<TrackState>('aiming')
+  const [track, setTrack] = useState<TrackState>('starting')
 
   useEffect(() => {
     let stream: MediaStream | undefined
@@ -367,7 +444,7 @@ export default function CameraAr({
   }, [gyro])
 
   const hint =
-    camState === 'starting'
+    camState === 'starting' || track === 'starting'
       ? labels.loading
       : !placeKey
         ? labels.aim
@@ -410,6 +487,7 @@ export default function CameraAr({
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center [&>*]:pointer-events-auto">
         {camState === 'on' &&
+          track !== 'starting' &&
           (placeKey ? (
             <button type="button" onClick={() => setPlaceKey(0)} className="rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-black">
               {labels.move}
