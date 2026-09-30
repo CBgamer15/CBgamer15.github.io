@@ -75,6 +75,7 @@ interface SceneProps {
   /** 0 while aiming; a new number each time the guest taps "Colocar aqui". */
   placeKey: number
   onTrack: (state: TrackState) => void
+  stats: ArStats
 }
 
 /**
@@ -146,7 +147,22 @@ class FrameSource {
   }
 }
 
-function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: SceneProps) {
+/** What the tracker is doing, for the ?debug=1 panel. */
+export interface ArStats {
+  frames: number
+  points: number
+  gyro: boolean
+  tilt: string
+  lost: number
+  recovered: number
+  restarted: number
+  camera: string
+  video: string
+}
+
+export const emptyStats = (): ArStats => ({ frames: 0, points: 0, gyro: false, tilt: '-', lost: 0, recovered: 0, restarted: 0, camera: '-', video: '-' })
+
+function ArScene({ model, video, orientation, gyro, placeKey, onTrack, stats }: SceneProps) {
   const { scene: dish } = useGLTF(model.glbUrl)
   const { camera, gl, size, scene } = useThree()
   const group = useRef<THREE.Group>(null)
@@ -394,10 +410,21 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
     }
 
     const t = tracker.current
+    const wasTracking = t.tracking
     let H = t.tracking ? t.update(frame, nearTable(K.current, cam.quaternion, cam.position, TABLE_Y)) : null
+    if (wasTracking && !H) stats.lost++
     // Lost a moment ago: look for the table where it was, against the same reference.
-    if (!H && lostFrames.current < RECOVER_FRAMES) H = t.recover(frame, nearTable(K.current, ref.current.q, ref.current.p, TABLE_Y))
+    if (!H && lostFrames.current < RECOVER_FRAMES) {
+      H = t.recover(frame, nearTable(K.current, ref.current.q, ref.current.p, TABLE_Y))
+      if (H) stats.recovered++
+    }
     if (H && refineTilt(H)) filter.current.reset()
+    stats.frames++
+    stats.points = t.points
+    stats.gyro = Boolean(gyroQ)
+    const tl = tilt.current
+    stats.tilt = tl ? `${tl.current.pitch.toFixed(0)}°/${tl.current.roll.toFixed(0)}°${tl.active ? ' (a aprender)' : ' (giroscópio)'}` : '-'
+    stats.video = `${v.videoWidth}×${v.videoHeight}`
     const rel = H && poseFromHomography(H, K.current, ref.current.n, ref.current.d)
     if (H && rel) {
       currentCameraPose(ref.current.q, ref.current.p, rel, sc.q, sc.p)
@@ -425,6 +452,7 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
       if (startTracking(frame, Boolean(gyroQ))) {
         remember()
         lostFrames.current = 0
+        stats.restarted++
         setState('tracking')
       }
     }
@@ -482,6 +510,28 @@ export default function CameraAr({
   const [camState, setCamState] = useState<'starting' | 'on' | 'failed'>('starting')
   const [placeKey, setPlaceKey] = useState(0)
   const [track, setTrack] = useState<TrackState>('starting')
+  const stats = useRef(emptyStats())
+  // Diagnostics panel, only with ?debug=1 in the link.
+  const [debug] = useState(() => new URLSearchParams(window.location.search).has('debug'))
+  const [panel, setPanel] = useState('')
+  useEffect(() => {
+    if (!debug) return
+    let lastFrames = 0
+    const id = window.setInterval(() => {
+      const s = stats.current
+      const fps = (s.frames - lastFrames) * 2
+      lastFrames = s.frames
+      setPanel(
+        [
+          `seguimento: ${fps} fps · pontos ${s.points}`,
+          `giroscópio: ${s.gyro ? 'sim' : 'não'} · inclinação ${s.tilt}`,
+          `perdeu ${s.lost} · recuperou ${s.recovered} · recomeçou ${s.restarted}`,
+          `câmara: ${s.camera} · ${s.video}`,
+        ].join('\n'),
+      )
+    }, 500)
+    return () => window.clearInterval(id)
+  }, [debug])
 
   useEffect(() => {
     let stream: MediaStream | undefined
@@ -490,9 +540,29 @@ export default function CameraAr({
       setCamState('failed')
       return
     }
+    const size = { width: { ideal: 1920 }, height: { ideal: 1080 } }
     void navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-      .then(async (s) => {
+      .getUserMedia({ video: { facingMode: { ideal: 'environment' }, ...size }, audio: false })
+      .then(async (first) => {
+        let s = first
+        // iPhone Pro models may hand out the "Back Dual/Triple Camera", which switches
+        // lens on its own (macro close to the table): the picture jumps and the dish
+        // slides. Prefer the plain main camera when the phone lists it.
+        const label = s.getVideoTracks()[0]?.label ?? ''
+        if (/dual|triple|dupla|tripla/i.test(label)) {
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [])
+          const main = devices.find(
+            (d) => d.kind === 'videoinput' && /back|traseira|tr[aá]s/i.test(d.label) && !/dual|triple|dupla|tripla|ultra|tele/i.test(d.label),
+          )
+          if (main) {
+            const single = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: main.deviceId }, ...size }, audio: false }).catch(() => null)
+            if (single) {
+              first.getTracks().forEach((t) => t.stop())
+              s = single
+            }
+          }
+        }
+        stats.current.camera = s.getVideoTracks()[0]?.label || '-'
         if (cancelled) return s.getTracks().forEach((t) => t.stop())
         stream = s
         if (video.current) {
@@ -547,7 +617,7 @@ export default function CameraAr({
             <hemisphereLight args={['#fffaf0', '#6b5a48', 1.1]} />
             <directionalLight position={[0.4, 1, 0.3]} intensity={1.6} />
             <Suspense fallback={null}>
-              <ArScene model={model} video={video} orientation={orientation} gyro={gyro} placeKey={placeKey} onTrack={setTrack} />
+              <ArScene model={model} video={video} orientation={orientation} gyro={gyro} placeKey={placeKey} onTrack={setTrack} stats={stats.current} />
             </Suspense>
           </Canvas>
         </Boundary>
@@ -560,6 +630,11 @@ export default function CameraAr({
           ✕
         </button>
       </div>
+      {debug && (
+        <pre className="pointer-events-none absolute inset-x-4 top-24 rounded-lg bg-black/70 p-2 font-mono text-[11px] leading-snug whitespace-pre-wrap text-lime-300">
+          {panel}
+        </pre>
+      )}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center [&>*]:pointer-events-auto">
         {camState === 'on' &&
           track !== 'starting' &&
