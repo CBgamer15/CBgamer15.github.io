@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+
+  /* Neutral, warm paper palette shared by guest and dashboard */
+  --color-paper: #f6f3ed;
+  --color-paper-2: #efebe3;
+  --color-surface: #ffffff;
+  --color-ink: #1c1b19;
+  --color-ink-2: #4a4741;
+  --color-mute: #8a857b;
+  --color-line: #e3ded4;
+  --color-line-strong: #cfc8bb;
+
+  /* Travessa brand */
+  --color-brand: #c65a35;
+  --color-brand-ink: #9d4222;
+
+  /* Status */
+  --color-ok: #2f6b4f;
+  --color-ok-soft: #e4efe8;
+  --color-warn: #a4661a;
+  --color-warn-soft: #f6ecdc;
+  --color-alert: #b03a2e;
+  --color-alert-soft: #f6e2df;
+  --color-info: #2e5a8a;
+  --color-info-soft: #e2eaf3;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-brand) 25%, transparent);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+
+.anim-sheet { animation: sheet-in 380ms var(--ease-out-soft); }
+.anim-fade { animation: fade-in 240ms ease-out; }
+.anim-rise { animation: rise-in 360ms var(--ease-out-soft) both; }
+.anim-pulse { animation: rise-in 360ms var(--ease-out-soft) both, pulse-ring 1.6s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-sheet, .anim-fade, .anim-rise, .anim-pulse { animation: none; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
