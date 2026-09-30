@@ -20,6 +20,7 @@ import { SettingsPage } from './settings/SettingsPage'
 import { TeamPage } from './team/TeamPage'
 import { RoadmapPage } from './RoadmapPage'
 import { ModelsPage } from './models/ModelsPage'
+import { AnalyticsPage } from './analytics/AnalyticsPage'
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>
 interface NavItem { to: string; label: string; icon: Icon; phase?: string }
@@ -44,7 +45,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Crescimento',
     items: [
-      { to: 'analises', label: 'Análises', icon: IconChart, phase: 'Fase 3' },
+      { to: 'analises', label: 'Análises', icon: IconChart },
       { to: 'assistente', label: 'Assistente IA', icon: IconSparkle, phase: 'Fase 4' },
       { to: 'reservas', label: 'Reservas', icon: IconCalendar, phase: 'Fase 6' },
       { to: 'avaliacoes', label: 'Avaliações', icon: IconStar, phase: 'Fase 6' },
@@ -203,6 +204,7 @@ function Shell() {
             <Route path="mesas" element={<TablesPage />} />
             <Route path="menu" element={<MenuPage />} />
             <Route path="modelos-3d" element={<ModelsPage />} />
+            <Route path="analises" element={<AnalyticsPage />} />
             <Route path="equipa" element={<TeamPage />} />
             <Route path="definicoes" element={<SettingsPage />} />
             <Route path=":module" element={<RoadmapPage />} />

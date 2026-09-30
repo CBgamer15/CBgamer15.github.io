@@ -5,7 +5,7 @@ import { useAsync, useNow } from '@/data/hooks'
 import { isActive } from '@/domain/orderFlow'
 import type { Order } from '@/domain/types'
 import { IconCheck, IconArrowRight } from '@/components/icons'
-import { Badge, Button, PageHeader, Stat } from '@/components/ui'
+import { Button, PageHeader, Stat } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { formatTime, minutesSince } from '@/lib/format'
 import { useDashboard } from '../DashboardContext'
@@ -182,9 +182,13 @@ export function Overview() {
             ))}
             {today.length === 0 && <li className="px-5 py-4 text-sm text-ink-2">—</li>}
           </ul>
-          <p className="mt-6 text-xs text-mute">
-            <Badge tone="brand">Fase 3</Badge> <span className="ml-1">Visualizações do menu, 3D, conversão e horas de ponta chegam com o módulo de Análises.</span>
-          </p>
+          <Link to={`${base}/analises`} className="mt-6 flex items-center justify-between border border-line bg-surface px-5 py-3.5 text-sm hover:border-ink">
+            <span>
+              <span className="block font-medium">Análises do menu</span>
+              <span className="text-xs text-ink-2">Funil, impacto do 3D, horas de ponta, pratos</span>
+            </span>
+            <IconArrowRight width={16} height={16} className="text-mute" />
+          </Link>
         </section>
       </div>
     </div>

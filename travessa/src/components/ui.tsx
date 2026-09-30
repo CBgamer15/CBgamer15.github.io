@@ -136,7 +136,7 @@ export function Stat({ label, value, sub }: { label: string; value: ReactNode; s
   return (
     <div className="px-5 py-4">
       <p className="text-xs text-mute">{label}</p>
-      <p className="mt-1.5 font-display text-[1.7rem] leading-none tabular">{value}</p>
+      <p className="mt-1.5 text-2xl leading-none font-semibold tracking-tight">{value}</p>
       {sub && <p className="mt-1.5 text-xs text-ink-2">{sub}</p>}
     </div>
   )

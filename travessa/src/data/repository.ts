@@ -1,3 +1,4 @@
+import type { AnalyticsReport, MenuEventType } from '@/domain/analytics'
 import type {
   Category,
   Dish,
@@ -82,4 +83,14 @@ export interface Repository {
   placeOrder(input: PlaceOrderInput): Promise<PlacedOrder>
   getGuestOrder(orderId: string, accessToken: string): Promise<GuestOrder | null>
   subscribeGuestOrder(orderId: string, accessToken: string, onChange: (o: GuestOrder) => void): Unsubscribe
+
+  // Analytics
+  /** Fire-and-forget guest events (anonymous per-visit session). */
+  trackEvents(input: { slug: string; session: string; tableToken?: string | null; events: TrackedEvent[] }): Promise<void>
+  getAnalytics(restaurantId: string, from: Date, to: Date): Promise<AnalyticsReport>
+}
+
+export interface TrackedEvent {
+  type: Exclude<MenuEventType, 'order_placed'>
+  dishId?: string
 }

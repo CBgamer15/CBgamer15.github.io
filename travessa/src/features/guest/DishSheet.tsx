@@ -12,7 +12,7 @@ const loadViewer = () => import('@/features/three/ModelViewer')
 const ModelViewer = lazy(loadViewer)
 
 export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: boolean; onClose: () => void }) {
-  const { t, money, add } = useGuest()
+  const { t, money, add, track } = useGuest()
   const [selection, setSelection] = useState<SelectedOption[]>(() => defaultSelection(dish))
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
@@ -62,7 +62,10 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
               <button
                 // Start fetching the viewer code on touch-down: a small head start, still only on request.
                 onPointerDown={() => void loadViewer()}
-                onClick={() => setShow3d((v) => !v)}
+                onClick={() => {
+                  if (!show3d) track('model_view', dish.id)
+                  setShow3d((v) => !v)
+                }}
                 className="flex items-center gap-2 rounded-full bg-ink/90 py-2 pr-4 pl-3 text-sm font-medium whitespace-nowrap text-paper shadow-lg backdrop-blur"
               >
                 <IconCube width={18} height={18} />

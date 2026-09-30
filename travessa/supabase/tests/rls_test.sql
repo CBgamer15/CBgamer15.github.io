@@ -131,4 +131,35 @@ do $$ begin
     if sqlerrm = 'cross-tenant model accepted' then raise; end if;
   end;
 end $$;
+-- Phase 3: analytics.
+set role anon;
+select track_events('casa-a', 'session-guest-1', :'tok', jsonb_build_array(
+  jsonb_build_object('type', 'menu_view'),
+  jsonb_build_object('type', 'dish_view', 'dishId', :'did'),
+  jsonb_build_object('type', 'order_placed'),                        -- ignored: server-only
+  jsonb_build_object('type', 'dish_view', 'dishId', gen_random_uuid()) -- unknown dish → null
+));
+do $$ begin
+  if (select count(*) from menu_events) <> 0 then raise exception 'anon can read events'; end if;
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+do $$
+declare r jsonb;
+begin
+  if (select count(*) from menu_events where session_id = 'session-guest-1') <> 3 then raise exception 'track_events wrote wrong count'; end if;
+  if (select count(*) from menu_events where type = 'order_placed') <> 1 then raise exception 'order trigger missing event'; end if;
+  r := restaurant_analytics((select id from restaurants where slug = 'casa-a'), now() - interval '1 day', now() + interval '1 day');
+  if (r ->> 'orders')::int <> 1 or (r ->> 'revenueCents')::int <> 5500 then raise exception 'analytics totals wrong: %', r; end if;
+  if jsonb_array_length(r -> 'heat') <> 7 or jsonb_array_length(r -> 'daily') < 2 then raise exception 'analytics shape wrong: %', r; end if;
+end $$;
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+do $$ begin
+  begin
+    perform restaurant_analytics((select id from restaurants where slug = 'casa-a' limit 1), now() - interval '1 day', now());
+    raise exception 'B read A analytics';
+  exception when others then
+    if sqlerrm = 'B read A analytics' then raise; end if;
+  end;
+end $$;
 \echo ALL RLS CHECKS PASSED

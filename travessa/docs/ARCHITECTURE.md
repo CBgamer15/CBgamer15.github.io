@@ -132,7 +132,7 @@ Realtime delivery works as follows:
 |---|---|
 | **3D** (built, Phase 2) | `dish_models` (GLB, USDZ, poster, real-world scale). `features/three/ModelViewer` is a lazy R3F chunk mounted from `DishSheet` only on tap. |
 | **AR** | Uses the same `dish_models` row: USDZ opens iOS Quick Look (`rel="ar"`), GLB opens an Android Scene Viewer intent, with WebXR as a fallback. `scale` keeps the dish true to size on the table. |
-| **Analytics** | Append-only `menu_events` (menu_view, dish_view, model_view, ar_view, add_to_cart, order_placed, ai_query) written by a rate-limited `track_event` RPC. Rollups are SQL views per restaurant/day. |
+| **Analytics** (built, Phase 3) | Append-only `menu_events`. Guests write through the rate-limited `track_events` RPC; `order_placed` comes only from an orders trigger. `restaurant_analytics()` returns the report in the tenant's time zone. At high volume, a nightly rollup table can replace the on-the-fly aggregation without changing the report's shape. The session ID is per visit (sessionStorage) and never identifies a person. |
 | **AI assistant** | Supabase Edge Function `menu-assistant`. It builds context only from the tenant's published menu rows, uses a strict system prompt ("answer only from these dishes; never invent dishes, ingredients, allergens or prices") and validates the output: every dish ID it recommends must exist. The model key is a server secret. |
 | **WhatsApp** | Edge Function + WhatsApp Business Cloud API; outbound templates (reservation confirm, review request) with consent flags on `guests`. |
 | **Google reviews** | `settings.googleReviewUrl` is already used after "served". Next: Google Business Profile API to read and reply to reviews. No review gating. |

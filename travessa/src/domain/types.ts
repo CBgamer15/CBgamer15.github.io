@@ -143,6 +143,8 @@ export interface Order {
   readyAt?: string
   servedAt?: string
   cancelledAt?: string
+  /** Anonymous per-visit id; links an order to the menu events of the same visit. */
+  guestSession?: string
   items: OrderItem[]
 }
 

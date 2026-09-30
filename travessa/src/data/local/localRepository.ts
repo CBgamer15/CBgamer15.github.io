@@ -14,10 +14,11 @@ import type {
   RestaurantTable,
   SessionUser,
 } from '@/domain/types'
+import { buildReport, type AnalyticsReport, type MenuEvent } from '@/domain/analytics'
 import { canTransition } from '@/domain/orderFlow'
 import { OrderValidationError, priceLine } from '@/domain/pricing'
 import { uid, urlToken } from '@/lib/ids'
-import type { PublicMenu, Repository, ResolvedTable, Unsubscribe } from '../repository'
+import type { PublicMenu, Repository, ResolvedTable, TrackedEvent, Unsubscribe } from '../repository'
 import { buildSeed, DEMO_USER } from './seed'
 
 /**
@@ -27,7 +28,9 @@ import { buildSeed, DEMO_USER } from './seed'
  * It enforces the same rules as the SQL functions (pricing, transitions, tenancy).
  */
 
-const DB_KEY = 'travessa:demo-db:v2'
+const DB_KEY = 'travessa:demo-db:v3'
+// Keep the browser store bounded (localStorage is ~5 MB).
+const MAX_EVENTS = 25000
 const SESSION_KEY = 'travessa:demo-session:v1'
 const CHANNEL = 'travessa-demo'
 
@@ -49,6 +52,7 @@ export interface LocalDb {
   tables: RestaurantTable[]
   orders: StoredOrder[]
   counters: Record<string, number>
+  events: (MenuEvent & { restaurantId: string })[]
 }
 
 type Topic = 'db' | 'auth'
@@ -444,12 +448,15 @@ export class LocalRepository implements Repository {
       createdAt: now,
       updatedAt: now,
       items,
+      guestSession: input.session,
       accessToken: uid(),
     }
     this.write((d) => {
       order.number = (d.counters[restaurant.id] ?? 0) + 1
       d.counters[restaurant.id] = order.number
       d.orders.push(order)
+      // Same as the orders trigger in SQL: the server records the conversion.
+      d.events.push({ restaurantId: restaurant.id, type: 'order_placed', at: now, session: input.session ?? `order:${order.id}`, valueCents: subtotal })
     })
     return { orderId: order.id, accessToken: order.accessToken, number: order.number }
   }
@@ -469,6 +476,36 @@ export class LocalRepository implements Repository {
       updatedAt: o.updatedAt,
       items: o.items.map(({ id: _i, dishId: _d, ...rest }) => rest),
     })
+  }
+
+  async trackEvents(input: { slug: string; session: string; tableToken?: string | null; events: TrackedEvent[] }): Promise<void> {
+    const r = this.read().restaurants.find((x) => x.slug === input.slug)
+    if (!r || !input.events.length) return
+    const at = new Date().toISOString()
+    // Quiet write: analytics should not trigger UI refreshes in other tabs.
+    const db = clone(this.read())
+    for (const e of input.events.slice(0, 25)) db.events.push({ restaurantId: r.id, type: e.type, dishId: e.dishId, session: input.session, at })
+    if (db.events.length > MAX_EVENTS) db.events = db.events.slice(-MAX_EVENTS)
+    this.cache = db
+    try {
+      this.storage.setItem(DB_KEY, JSON.stringify(db))
+    } catch {
+      // storage full: drop analytics rather than break ordering
+    }
+  }
+
+  async getAnalytics(restaurantId: string, from: Date, to: Date): Promise<AnalyticsReport> {
+    this.requireRole(restaurantId)
+    const db = this.read()
+    const dishes = db.dishes.filter((d) => d.restaurantId === restaurantId)
+    return buildReport(
+      db.events.filter((e) => e.restaurantId === restaurantId),
+      db.orders.filter((o) => o.restaurantId === restaurantId),
+      new Map(dishes.map((d) => [d.id, d.name])),
+      new Set(dishes.filter((d) => d.model).map((d) => d.id)),
+      from,
+      to,
+    )
   }
 
   subscribeGuestOrder(orderId: string, accessToken: string, onChange: (o: GuestOrder) => void): Unsubscribe {

@@ -4,17 +4,6 @@ import { Badge, PageHeader } from '@/components/ui'
 // Modules that are part of the platform but not built yet. Shown honestly, with
 // what they will do, so the sales conversation can include them.
 const MODULES: Record<string, { title: string; phase: string; lead: string; points: string[] }> = {
-  analises: {
-    title: 'Análises',
-    phase: 'Fase 3',
-    lead: 'O que os clientes veem, o que pedem, e onde o menu perde vendas.',
-    points: [
-      'Visualizações do menu, de cada prato, do 3D e da realidade aumentada',
-      'Taxa de conversão: visualização → carrinho → pedido',
-      'Ticket médio, pratos mais populares, horas de ponta',
-      'Pratos muito vistos e pouco pedidos: onde mexer na descrição ou no preço',
-    ],
-  },
   assistente: {
     title: 'Assistente IA',
     phase: 'Fase 4',

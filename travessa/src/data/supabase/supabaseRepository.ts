@@ -13,7 +13,8 @@ import type {
   RestaurantTable,
   SessionUser,
 } from '@/domain/types'
-import type { PublicMenu, Repository, ResolvedTable, Unsubscribe } from '../repository'
+import type { AnalyticsReport } from '@/domain/analytics'
+import type { PublicMenu, Repository, ResolvedTable, TrackedEvent, Unsubscribe } from '../repository'
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- row mappers translate untyped PostgREST rows */
 
@@ -133,6 +134,7 @@ const toOrder = (r: any): Order => ({
   readyAt: r.ready_at ?? undefined,
   servedAt: r.served_at ?? undefined,
   cancelledAt: r.cancelled_at ?? undefined,
+  guestSession: r.guest_session ?? undefined,
   items: (r.order_items ?? []).map((i: any) => ({
     id: i.id,
     dishId: i.dish_id ?? undefined,
@@ -363,6 +365,21 @@ export class SupabaseRepository implements Repository {
 
   async getGuestOrder(orderId: string, accessToken: string): Promise<GuestOrder | null> {
     return (check(await this.sb.rpc('get_guest_order', { p_order_id: orderId, p_access_token: accessToken })) as GuestOrder) ?? null
+  }
+
+  async trackEvents(input: { slug: string; session: string; tableToken?: string | null; events: TrackedEvent[] }) {
+    await this.sb.rpc('track_events', {
+      p_slug: input.slug,
+      p_session: input.session,
+      p_table_token: input.tableToken ?? null,
+      p_events: input.events,
+    })
+  }
+
+  async getAnalytics(restaurantId: string, from: Date, to: Date): Promise<AnalyticsReport> {
+    return check(
+      await this.sb.rpc('restaurant_analytics', { p_restaurant_id: restaurantId, p_from: from.toISOString(), p_to: to.toISOString() }),
+    ) as AnalyticsReport
   }
 
   // Guests cannot subscribe to the orders table (RLS), so status is polled

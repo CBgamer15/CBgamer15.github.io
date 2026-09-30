@@ -11,7 +11,7 @@ import { CartSheet } from './CartSheet'
 const MARKER_TAGS: DishTag[] = ['vegetarian', 'vegan', 'spicy']
 
 export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
-  const { menu, table, t, lang, setLang, money, priced, recentOrders } = useGuest()
+  const { menu, table, t, lang, setLang, money, priced, recentOrders, track } = useGuest()
   const { restaurant } = menu
   const [openDish, setOpenDish] = useState<Dish | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
@@ -24,6 +24,11 @@ export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
         .filter((s) => s.dishes.length > 0),
     [menu],
   )
+  useEffect(() => track('menu_view'), [track])
+  const openDishSheet = (d: Dish) => {
+    track('dish_view', d.id)
+    setOpenDish(d)
+  }
   const featured = useMemo(() => menu.dishes.filter((d) => d.isFeatured && d.isAvailable), [menu])
   const activeId = useScrollSpy(sections.map((s) => s.category.id))
   const canOrder = Boolean(table) && restaurant.settings.orderingEnabled
@@ -108,7 +113,7 @@ export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
           <h2 className="px-5 font-display text-xl">{t.featured}</h2>
           <div className="scrollbar-none mt-4 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-1">
             {featured.map((d) => (
-              <button key={d.id} onClick={() => setOpenDish(d)} className="w-60 shrink-0 snap-start text-left">
+              <button key={d.id} onClick={() => openDishSheet(d)} className="w-60 shrink-0 snap-start text-left">
                 <div className="relative">
                   <DishImage src={d.imageUrl} alt={d.name} className="aspect-[4/3] w-full rounded-md" />
                   {d.model && <ThreeDMark />}
@@ -129,7 +134,7 @@ export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
           <ul className="mt-2 divide-y divide-line">
             {dishes.map((d) => (
               <li key={d.id}>
-                <DishRow dish={d} onOpen={() => setOpenDish(d)} />
+                <DishRow dish={d} onOpen={() => openDishSheet(d)} />
               </li>
             ))}
           </ul>

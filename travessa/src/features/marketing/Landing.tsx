@@ -14,7 +14,7 @@ const MODULES: [string, string, string][] = [
   ['Menu digital e QR por mesa', 'Disponível', 'ok'],
   ['Pedidos à mesa e ecrã de cozinha', 'Disponível', 'ok'],
   ['Pratos em 3D', 'Disponível', 'ok'],
-  ['Análises do menu', 'Fase 3', ''],
+  ['Análises do menu', 'Disponível', 'ok'],
   ['Assistente IA do menu', 'Fase 4', ''],
   ['Realidade aumentada', 'Fase 5', ''],
   ['Reservas e avaliações Google', 'Fase 6', ''],

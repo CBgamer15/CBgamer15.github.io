@@ -38,11 +38,22 @@ The goal is a demo that sells: QR → menu → dish → cart → order → kitch
       procedurally as real GLBs by `scripts/models/generate-models.ts`. Production models come
       from photogrammetry and go through the same pipeline.
 
-## Phase 3 — Analytics
+## Phase 3 — Analytics ✅
 
-- `menu_events` + `track_event` RPC (rate-limited, anonymous session ID)
-- Menu views, dish views, 3D views, AR views, add-to-cart, orders
-- Conversion funnel, AOV, popular dishes, peak hours, "viewed but not ordered"
+- [x] `menu_events` table and a rate-limited `track_events` RPC (`0003_analytics.sql`). The
+      guest session ID is anonymous, per visit, and kept in sessionStorage.
+- [x] `order_placed` events are written by an orders trigger on the server, so clients cannot
+      fake conversions or revenue
+- [x] `restaurant_analytics()` aggregates in the restaurant's time zone and is member-only. It
+      mirrors `domain/analytics.ts`, which is unit-tested and used by demo mode.
+- [x] Dashboard "Análises" shows:
+  - KPIs: menu visits, dish views, 3D views, add-to-cart, orders, conversion, AOV, revenue
+  - the menu funnel
+  - **3D impact** (conversion with vs. without the 3D view)
+  - daily visits and orders
+  - a peak-hours heatmap
+  - a per-dish table with "Muito visto, pouco pedido" flags
+- [x] Demo mode seeds 30 days of simulated service, with Mondays closed
 
 ## Phase 4 — AI food assistant
 
