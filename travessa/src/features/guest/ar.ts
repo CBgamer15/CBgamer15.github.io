@@ -82,11 +82,6 @@ export function sceneViewerHref(model: DishModel, title: string, fallbackUrl: st
   )
 }
 
-/** Open an https URL in Safari from Chrome, Brave or an in-app browser (iOS 17+). */
-export function safariHandoffUrl(url: string): string {
-  return url.replace(/^https?:\/\//, (m) => `x-safari-${m}`)
-}
-
 /** Deep link that reopens this dish (and table) on another device. */
 export function dishLink(slug: string, tableToken: string | null, dishId: string): string {
   const path = tableToken ? `/m/${slug}/t/${tableToken}` : `/m/${slug}`

@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import type { Dish } from '@/domain/types'
 import { IconAr, IconClose } from '@/components/icons'
-import { currentEnv, detectArMode, dishLink, iosNeedsSafari, quickLookHref, safariHandoffUrl, sceneViewerHref } from './ar'
+import { currentEnv, detectArMode, dishLink, iosNeedsSafari, quickLookHref, sceneViewerHref } from './ar'
 import { useGuest } from './GuestContext'
 
 // The QR library is only needed on a laptop, so it stays out of the phone's menu bundle.
@@ -91,11 +91,6 @@ export function ArButton({ dish }: { dish: Dish }) {
               <IconAr width={36} height={36} className="mx-auto text-ink-2" />
               <p className="mt-4 font-display text-xl">{t.arSafariTitle}</p>
               <p className="mt-2 text-sm leading-relaxed text-ink-2">{t.arSafariBody}</p>
-              {/* iOS 17+ opens x-safari-https:// links in Safari from any browser or app,
-                  straight to this dish (the ?prato= deep link reopens its sheet). */}
-              <a href={safariHandoffUrl(link)} className="mt-5 block w-full rounded-lg bg-ink py-3 text-sm font-medium text-paper">
-                {t.arSafariOpen}
-              </a>
               <button
                 type="button"
                 onClick={async () => {
@@ -106,7 +101,7 @@ export function ArButton({ dish }: { dish: Dish }) {
                     window.prompt(t.arSafariCopy, link)
                   }
                 }}
-                className="mt-2 w-full rounded-lg border border-line-strong py-3 text-sm font-medium text-ink"
+                className="mt-5 w-full rounded-lg bg-ink py-3 text-sm font-medium text-paper"
               >
                 {copied ? t.arSafariCopied : t.arSafariCopy}
               </button>
