@@ -43,6 +43,8 @@ export class PlaneTracker {
   private to: Point[] = Array.from({ length: MAX_POINTS }, () => ({ x: 0, y: 0 }))
   private H: Homography = identity()
   private active = false
+  /** A reference frame exists (start() succeeded at least once). */
+  private hasRef = false
   // Drift correction: the reference frame, warped into the current view.
   private refImg: InstanceType<typeof jsfeat.matrix_t>
   private warped = new jsfeat.pyramid_t(3)
@@ -86,6 +88,7 @@ export class PlaneTracker {
     for (let i = 0; i < this.count * 2; i++) this.currXY[i] = this.refXY[i]
     this.swap()
     this.active = this.count >= MIN_INLIERS
+    this.hasRef = this.active
     return this.count
   }
 
@@ -144,7 +147,7 @@ export class PlaneTracker {
       const ry = this.refXY[i * 2 + 1]
       // Only points that exist in the reference image can be checked against it.
       if (rx < margin || ry < margin || rx > this.width - margin || ry > this.height - margin) continue
-      const p = apply(this.H, rx, ry)
+      const p = applyHomography(this.H, rx, ry)
       if (!p) continue
       this.fixIdx[m] = i
       this.fixA[m * 2] = p.x
@@ -167,6 +170,73 @@ export class PlaneTracker {
       const before = this.H.slice()
       if (!this.fit()) this.H.set(before)
     }
+  }
+
+  /**
+   * After the table was lost (fast move, a hand in front), looks for it again near
+   * where it was last seen, against the same reference frame: the dish comes back to
+   * exactly its spot, instead of starting over from a pose that may be a little off.
+   * `acceptRef` says which pixels of the reference frame are table.
+   */
+  recover(rgba: Uint8ClampedArray | Uint8Array, acceptRef: (x: number, y: number) => boolean = () => true): Homography | null {
+    if (this.active || !this.hasRef) return null
+    this.load(rgba, this.curr)
+    const inv = invert3(this.H)
+    if (!inv) return this.lose()
+    for (let i = 0; i < 9; i++) this.warpInv.data[i] = inv[i]
+    jsfeat.imgproc.warp_perspective(this.refImg, this.warped.data[0], this.warpInv, 0)
+    this.warped.build(this.warped.data[0], true)
+
+    // Fresh, well spread corners of the reference frame, predicted into this frame.
+    jsfeat.fast_corners.set_threshold(14)
+    const found = jsfeat.fast_corners.detect(this.refImg, this.corners, 8)
+    const order = Array.from({ length: found }, (_, i) => i).sort((a, b) => this.corners[b].score - this.corners[a].score)
+    const cols = Math.ceil(this.width / CELL)
+    const taken = new Uint8Array(cols * Math.ceil(this.height / CELL))
+    let m = 0
+    for (const k of order) {
+      if (m >= MAX_POINTS) break
+      const { x, y } = this.corners[k]
+      const cell = cellOf(x, y, cols)
+      if (taken[cell] || !acceptRef(x, y)) continue
+      const p = applyHomography(this.H, x, y)
+      if (!p || p.x < 12 || p.y < 12 || p.x > this.width - 12 || p.y > this.height - 12) continue
+      taken[cell] = 1
+      this.refXY[m * 2] = x
+      this.refXY[m * 2 + 1] = y
+      this.fixA[m * 2] = p.x
+      this.fixA[m * 2 + 1] = p.y
+      m++
+    }
+    if (m < MIN_INLIERS * 2) return this.lose()
+    jsfeat.optical_flow_lk.track(this.warped, this.curr, this.fixA, this.fixB, m, 21, 30, this.fixStatus, 0.01, 0.0005)
+    let n = 0
+    for (let k = 0; k < m; k++) {
+      if (this.fixStatus[k] !== 1) continue
+      this.refXY[n * 2] = this.refXY[k * 2]
+      this.refXY[n * 2 + 1] = this.refXY[k * 2 + 1]
+      this.currXY[n * 2] = this.fixB[k * 2]
+      this.currXY[n * 2 + 1] = this.fixB[k * 2 + 1]
+      n++
+    }
+    this.count = n
+    const before = this.H.slice()
+    if (n < MIN_INLIERS * 2 || !this.fit()) {
+      this.H.set(before)
+      return this.lose()
+    }
+    let kept = 0
+    for (let i = 0; i < this.count; i++) if (this.mask.data[i]) this.copyPoint(i, kept++)
+    // Demand a clear majority: a wrong match must not snap the dish somewhere else.
+    if (kept < MIN_INLIERS * 2 || kept < n * 0.6) {
+      this.H.set(before)
+      return this.lose()
+    }
+    this.count = kept
+    this.active = true
+    this.correctDrift()
+    this.swap()
+    return this.H
   }
 
   private lose(): null {
@@ -223,7 +293,7 @@ export class PlaneTracker {
       const { x, y } = this.corners[k]
       const cell = cellOf(x, y, cols)
       if (taken[cell] || !accept(x, y)) continue
-      const ref = apply(inv, x, y)
+      const ref = applyHomography(inv, x, y)
       if (!ref) continue
       taken[cell] = 1
       this.currXY[this.count * 2] = x
@@ -256,7 +326,8 @@ function identity(): Homography {
   return Float64Array.of(1, 0, 0, 0, 1, 0, 0, 0, 1)
 }
 
-function apply(h: Homography | null, x: number, y: number): Point | null {
+/** Maps a pixel through a homography. */
+export function applyHomography(h: Homography | null, x: number, y: number): Point | null {
   if (!h) return null
   const w = h[6] * x + h[7] * y + h[8]
   if (Math.abs(w) < 1e-9) return null
@@ -296,6 +367,12 @@ export interface Intrinsics {
 export interface RelativePose {
   R: THREE.Matrix3
   t: THREE.Vector3
+  /**
+   * How far K⁻¹·H·K is from "rotation + t·nᵀ/d" for this n. Near zero when n (the
+   * table's tilt in the reference camera) is right; grows with a wrong tilt as the
+   * phone moves. Used to find the tilt when there is no gyroscope.
+   */
+  residual: number
 }
 
 export function poseFromHomography(H: Homography, K: Intrinsics, n: THREE.Vector3, d: number): RelativePose | null {
@@ -319,10 +396,14 @@ export function poseFromHomography(H: Homography, K: Intrinsics, n: THREE.Vector
   const onAxis = new THREE.Vector3(0, 0, 1).multiplyScalar(d / Math.max(n.z, 1e-3))
   if (onAxis.clone().applyMatrix3(M).z * s < 0) s = -s
 
-  const r1 = m1.multiplyScalar(s).normalize()
-  const r2 = m2.multiplyScalar(s)
+  const sm1 = m1.multiplyScalar(s).clone()
+  const sm2 = m2.multiplyScalar(s).clone()
+  const r1 = m1.normalize()
+  const r2 = m2
   r2.sub(r1.clone().multiplyScalar(r1.dot(r2))).normalize()
   const r3 = new THREE.Vector3().crossVectors(r1, r2)
+  // Directions in the table plane must be mapped by the rotation alone.
+  const residual = sm1.distanceToSquared(r1) + sm2.distanceToSquared(r2)
 
   // R = [r1 r2 r3]·[u1 u2 n]ᵀ
   const rCols = new THREE.Matrix3().set(r1.x, r2.x, r3.x, r1.y, r2.y, r3.y, r1.z, r2.z, r3.z)
@@ -332,7 +413,7 @@ export function poseFromHomography(H: Homography, K: Intrinsics, n: THREE.Vector
   const Mn = n.clone().applyMatrix3(M).multiplyScalar(s)
   const t = Mn.sub(n.clone().applyMatrix3(R)).multiplyScalar(d)
   if (!Number.isFinite(t.x + t.y + t.z)) return null
-  return { R, t }
+  return { R, t, residual }
 }
 
 // three.js cameras look down −z with y up; computer vision looks down +z with y down.

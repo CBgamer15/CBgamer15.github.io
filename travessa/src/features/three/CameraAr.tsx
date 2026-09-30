@@ -3,7 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import type { DishModel } from '@/domain/types'
-import { currentCameraPose, nearTable, PlaneTracker, poseFromHomography, tableInCamera, type Intrinsics } from './planeTracker'
+import { applyHomography, currentCameraPose, nearTable, PlaneTracker, poseFromHomography, tableInCamera, type Homography, type Intrinsics, type Point } from './planeTracker'
+import { TiltEstimator, type Tilt } from './tiltEstimator'
 import { PoseFilter } from './poseFilter'
 
 // "Ver na minha mesa" for browsers that can't reach AR Quick Look (Chrome, Brave
@@ -18,6 +19,8 @@ const TABLE_DROP = 0.32
 const TABLE_Y = -TABLE_DROP
 /** Field of view of a phone's main camera along the long side of the video, approximate. */
 const VIDEO_LONG_FOV = THREE.MathUtils.degToRad(64)
+/** Frames (~1.5 s) spent looking for the table where it was lost before starting over from the current view. */
+const RECOVER_FRAMES = 45
 /** Short side of the image the tracker works on, in pixels. */
 const PROCESS_SIZE = 320
 
@@ -159,6 +162,11 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
   const ref = useRef({ q: new THREE.Quaternion(), p: new THREE.Vector3(), n: new THREE.Vector3(), d: 1 })
   const good = useRef({ q: new THREE.Quaternion(), gyro: new THREE.Quaternion(), hasGyro: false })
   const retryIn = useRef(0)
+  const lostFrames = useRef(0)
+  /** Where the dish's base is in the reference frame (processing pixels); null = recompute from its 3D position. */
+  const basePx = useRef<Point | null>(null)
+  // No gyroscope when the dish was placed: the phone's tilt is a guess, refined from the motion.
+  const tilt = useRef<{ estimator: TiltEstimator; active: boolean; current: Tilt; frames: number } | null>(null)
   const scratch = useRef({ q: new THREE.Quaternion(), p: new THREE.Vector3(), g: new THREE.Quaternion() })
 
   // The camera picture is drawn by WebGL as the scene background, in the same render
@@ -193,7 +201,10 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
       const r = el.getBoundingClientRect()
       ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1)
       ray.setFromCamera(ndc, camera)
-      if (ray.ray.intersectPlane(table, target) && target.distanceTo(camera.position) < 1.5) group.current?.position.set(target.x, TABLE_Y, target.z)
+      if (ray.ray.intersectPlane(table, target) && target.distanceTo(camera.position) < 1.5) {
+        group.current?.position.set(target.x, TABLE_Y, target.z)
+        basePx.current = null
+      }
     }
     const down = (e: PointerEvent) => {
       el.setPointerCapture(e.pointerId)
@@ -230,18 +241,74 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
     }
   }, [camera, gl, model.scale])
 
-  /** Starts following the table, with the current camera pose as the reference. */
-  const startTracking = (frame: Uint8ClampedArray) => {
-    const t = tracker.current
-    if (!t) return false
+  /** Where a world point appears in the reference frame, in processing pixels. */
+  const projectToRef = (world: THREE.Vector3): Point | null => {
     const r = ref.current
-    r.q.copy(camera.quaternion)
-    r.p.copy(camera.position)
+    const c = world.clone().sub(r.p).applyQuaternion(r.q.clone().invert())
+    if (c.z > -1e-3) return null
+    const k = K.current
+    return { x: k.cx + (k.f * c.x) / -c.z, y: k.cy - (k.f * c.y) / -c.z }
+  }
+
+  /** Sets the reference camera's pose and the table plane as seen from it. */
+  const setReference = (q: THREE.Quaternion, p: THREE.Vector3) => {
+    const r = ref.current
+    r.q.copy(q)
+    r.p.copy(p)
     const plane = tableInCamera(r.q, r.p, TABLE_Y)
     r.n.copy(plane.n)
     r.d = plane.d
-    t.start(frame, nearTable(K.current, r.q, r.p, TABLE_Y))
+  }
+
+  /** Starts following the table, with the current camera pose as the reference. */
+  const startTracking = (frame: Uint8ClampedArray, withGyro: boolean) => {
+    const t = tracker.current
+    if (!t) return false
+    setReference(camera.quaternion, camera.position)
+    t.start(frame, nearTable(K.current, ref.current.q, ref.current.p, TABLE_Y))
+    basePx.current = group.current ? projectToRef(group.current.position) : null
+    const e = new THREE.Euler().setFromQuaternion(ref.current.q, 'YXZ')
+    tilt.current ??= { estimator: new TiltEstimator(), active: false, current: { pitch: 0, roll: 0 }, frames: 0 }
+    tilt.current.estimator.reset()
+    tilt.current.active = !withGyro
+    tilt.current.current = { pitch: THREE.MathUtils.radToDeg(e.x), roll: THREE.MathUtils.radToDeg(e.z) }
+    tilt.current.frames = 0
     return t.tracking
+  }
+
+  /**
+   * Without a gyroscope: once the motion reveals the phone's real tilt at placement,
+   * re-tilt the reference camera. The dish keeps its spot on the table (same pixel of
+   * the reference frame); only the table's 3D angle is corrected.
+   */
+  const refineTilt = (H: Homography) => {
+    const tl = tilt.current
+    if (!tl?.active) return false
+    tl.frames++
+    if (tl.frames % 2) return false
+    tl.estimator.add(H, K.current)
+    if (tl.frames % 6) return false
+    const e = tl.estimator.estimate()
+    if (!e || (Math.abs(e.pitch - tl.current.pitch) < 1.5 && Math.abs(e.roll - tl.current.roll) < 1.5)) return false
+    const yaw = new THREE.Euler().setFromQuaternion(ref.current.q, 'YXZ').y
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(e.pitch), yaw, THREE.MathUtils.degToRad(e.roll), 'YXZ'))
+    basePx.current ??= group.current ? projectToRef(group.current.position) : null
+    setReference(q, ref.current.p)
+    tl.current = e
+    return true
+  }
+
+  /** Puts the dish's base exactly on its spot of the table in this frame. */
+  const pinBase = (H: Homography) => {
+    if (!group.current) return
+    basePx.current ??= projectToRef(group.current.position)
+    const px = basePx.current && applyHomography(H, basePx.current.x, basePx.current.y)
+    if (!px) return
+    const k = K.current
+    const dir = new THREE.Vector3((px.x - k.cx) / k.f, -(px.y - k.cy) / k.f, -1).applyQuaternion(camera.quaternion).normalize()
+    ray.set(camera.position, dir)
+    const hit = ray.ray.intersectPlane(table, new THREE.Vector3())
+    if (hit && hit.distanceTo(camera.position) < 2) group.current.position.set(hit.x, TABLE_Y, hit.z)
   }
 
   useFrame(({ clock }) => {
@@ -318,7 +385,8 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
     if (placedFor.current !== placeKey) {
       placedFor.current = placeKey
       filter.current.reset()
-      const ok = startTracking(frame)
+      lostFrames.current = 0
+      const ok = startTracking(frame, Boolean(gyroQ))
       remember()
       setState(ok ? 'tracking' : 'flat')
       retryIn.current = 10
@@ -326,30 +394,37 @@ function ArScene({ model, video, orientation, gyro, placeKey, onTrack }: ScenePr
     }
 
     const t = tracker.current
-    const H = t.tracking ? t.update(frame, nearTable(K.current, cam.quaternion, cam.position, TABLE_Y)) : null
+    let H = t.tracking ? t.update(frame, nearTable(K.current, cam.quaternion, cam.position, TABLE_Y)) : null
+    // Lost a moment ago: look for the table where it was, against the same reference.
+    if (!H && lostFrames.current < RECOVER_FRAMES) H = t.recover(frame, nearTable(K.current, ref.current.q, ref.current.p, TABLE_Y))
+    if (H && refineTilt(H)) filter.current.reset()
     const rel = H && poseFromHomography(H, K.current, ref.current.n, ref.current.d)
-    if (rel) {
+    if (H && rel) {
       currentCameraPose(ref.current.q, ref.current.p, rel, sc.q, sc.p)
       const f = filter.current.update(sc.p, sc.q, src.dt)
       cam.position.copy(f.position)
       cam.quaternion.copy(f.quaternion)
+      pinBase(H)
       remember()
+      lostFrames.current = 0
       setState('tracking')
       return
     }
 
     // Table lost (or too plain to follow): turn with the gyroscope from the last good
-    // pose, and try to pick the table up again every few frames.
+    // pose. If it doesn't come back where it was, start over from the current view.
     if (gyroQ && good.current.hasGyro) {
       const delta = good.current.gyro.clone().invert().multiply(gyroQ)
       cam.quaternion.copy(good.current.q).multiply(delta)
     }
     filter.current.reset()
+    lostFrames.current++
     if (state.current === 'tracking') setState('lost')
-    if (--retryIn.current <= 0) {
+    if ((lostFrames.current >= RECOVER_FRAMES || state.current === 'flat') && --retryIn.current <= 0) {
       retryIn.current = 10
-      if (startTracking(frame)) {
+      if (startTracking(frame, Boolean(gyroQ))) {
         remember()
+        lostFrames.current = 0
         setState('tracking')
       }
     }

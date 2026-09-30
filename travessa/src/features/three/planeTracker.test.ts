@@ -106,6 +106,44 @@ describe('plane tracker', () => {
     expect(worst).toBeLessThan(4)
   })
 
+  it('finds the table again after losing it, against the same reference', () => {
+    const q0 = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(-50), 0, 0, 'YXZ'))
+    const p0 = new THREE.Vector3()
+    const tracker = new PlaneTracker(W, H)
+    tracker.start(render(q0, p0), nearTable(K, q0, p0, TABLE_Y))
+    const { n, d } = tableInCamera(q0, p0, TABLE_Y)
+    const at = (k: number) => ({
+      q: new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(-50 + 4 * k), THREE.MathUtils.degToRad(6 * k), 0, 'YXZ')),
+      p: new THREE.Vector3(0.04 * k, 0.01 * k, -0.02 * k),
+    })
+    for (let i = 1; i <= 10; i++) expect(tracker.update(render(at(i / 10).q, at(i / 10).p))).not.toBeNull()
+
+    // A hand covers the camera: the table is lost…
+    expect(tracker.update(new Uint8ClampedArray(W * H * 4).fill(30))).toBeNull()
+    expect(tracker.tracking).toBe(false)
+    // …while the phone keeps moving a little; then the table is back in view.
+    const back = at(1.3)
+    const Hm = tracker.recover(render(back.q, back.p), nearTable(K, q0, p0, TABLE_Y))
+    expect(Hm).not.toBeNull()
+    expect(tracker.tracking).toBe(true)
+    const estQ = new THREE.Quaternion()
+    const estP = new THREE.Vector3()
+    currentCameraPose(q0, p0, poseFromHomography(Hm!, K, n, d)!, estQ, estP)
+    expect(estP.distanceTo(back.p)).toBeLessThan(0.01)
+    expect(THREE.MathUtils.radToDeg(estQ.angleTo(back.q))).toBeLessThan(1.5)
+  })
+
+  it('does not snap onto something else when the table is not back', () => {
+    const q0 = new THREE.Quaternion().setFromEuler(new THREE.Euler(THREE.MathUtils.degToRad(-50), 0, 0, 'YXZ'))
+    const tracker = new PlaneTracker(W, H)
+    tracker.start(render(q0, new THREE.Vector3()))
+    expect(tracker.update(new Uint8ClampedArray(W * H * 4).fill(30))).toBeNull()
+    // Pointing at a different, unrelated patch of pattern.
+    const elsewhere = new THREE.Vector3(1.5, 0, -1.2)
+    expect(tracker.recover(render(q0, elsewhere))).toBeNull()
+    expect(tracker.tracking).toBe(false)
+  })
+
   it('does not start on a surface without texture', () => {
     const flat = new Uint8ClampedArray(W * H * 4).fill(180)
     const tracker = new PlaneTracker(W, H)
