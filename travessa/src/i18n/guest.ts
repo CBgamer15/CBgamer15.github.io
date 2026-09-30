@@ -44,6 +44,10 @@ const pt = {
   items: (n: number) => (n === 1 ? '1 artigo' : `${n} artigos`),
   vatNote: 'Preços com IVA incluído.',
   view3d: 'Ver em 3D',
+  viewPhoto: 'Ver foto',
+  loading3d: 'A preparar o prato em 3D…',
+  error3d: 'Não foi possível abrir o modelo 3D. Tente novamente com melhor rede.',
+  hint3d: 'Arraste para rodar',
   viewAr: 'Ver na minha mesa',
   status: {
     received: 'Recebido',
@@ -119,6 +123,10 @@ const en: GuestStrings = {
   items: (n) => (n === 1 ? '1 item' : `${n} items`),
   vatNote: 'Prices include VAT.',
   view3d: 'View in 3D',
+  viewPhoto: 'View photo',
+  loading3d: 'Preparing the dish in 3D…',
+  error3d: "Couldn't open the 3D model. Please try again on a better connection.",
+  hint3d: 'Drag to rotate',
   viewAr: 'See it on my table',
   status: { received: 'Received', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' },
   statusLine: {

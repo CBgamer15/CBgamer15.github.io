@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import type { Dish, OptionGroup, SelectedOption } from '@/domain/types'
 import { defaultSelection, priceLine, selectionIsValid } from '@/domain/pricing'
 import { DishImage } from '@/components/DishImage'
 import { Sheet } from '@/components/Sheet'
 import { Stepper } from '@/components/Stepper'
-import { IconClock, IconClose } from '@/components/icons'
+import { IconClock, IconClose, IconCube } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import { useGuest } from './GuestContext'
+
+const loadViewer = () => import('@/features/three/ModelViewer')
+const ModelViewer = lazy(loadViewer)
 
 export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: boolean; onClose: () => void }) {
   const { t, money, add } = useGuest()
@@ -14,6 +17,7 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
   const [noteOpen, setNoteOpen] = useState(false)
+  const [show3d, setShow3d] = useState(false)
 
   const valid = selectionIsValid(dish, selection)
   const unit = useMemo(() => (valid ? priceLine(dish, selection).unitCents : dish.priceCents), [dish, selection, valid])
@@ -38,8 +42,14 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
   return (
     <Sheet onClose={onClose} label={dish.name}>
       <div className="overflow-y-auto overscroll-contain">
-        <div className="relative">
-          <DishImage src={dish.imageUrl} alt={dish.name} className="aspect-[4/3] w-full" eager />
+        <div className="relative aspect-[4/3] w-full bg-paper-2">
+          {show3d && dish.model ? (
+            <Suspense fallback={<DishImage src={dish.model.posterUrl ?? dish.imageUrl} alt={dish.name} className="size-full opacity-60" />}>
+              <ModelViewer model={dish.model} loadingLabel={t.loading3d} errorLabel={t.error3d} />
+            </Suspense>
+          ) : (
+            <DishImage src={dish.imageUrl} alt={dish.name} className="size-full" eager />
+          )}
           <button
             onClick={onClose}
             className="absolute top-3 right-3 grid size-9 place-items-center rounded-full bg-paper/95 text-ink shadow-sm backdrop-blur"
@@ -47,7 +57,20 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
           >
             <IconClose width={18} height={18} />
           </button>
-          {/* Phase 2 mounts the 3D / AR entry points here, lazy-loaded on tap. */}
+          {dish.model && (
+            <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-3">
+              <button
+                // Start fetching the viewer code on touch-down: a small head start, still only on request.
+                onPointerDown={() => void loadViewer()}
+                onClick={() => setShow3d((v) => !v)}
+                className="flex items-center gap-2 rounded-full bg-ink/90 py-2 pr-4 pl-3 text-sm font-medium whitespace-nowrap text-paper shadow-lg backdrop-blur"
+              >
+                <IconCube width={18} height={18} />
+                {show3d ? t.viewPhoto : t.view3d}
+              </button>
+              {show3d && <span className="rounded-full bg-paper/90 px-3 py-1.5 text-[11px] whitespace-nowrap text-ink-2 backdrop-blur">{t.hint3d}</span>}
+            </div>
+          )}
         </div>
 
         <div className="px-5 pt-5 pb-6">

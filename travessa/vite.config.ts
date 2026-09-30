@@ -9,6 +9,8 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   build: {
+    // The lazy 3D chunk (three + r3f + drei) is ~1 MB raw / ~290 kB gzip and loads only on request.
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         // Keep the 3D stack out of the menu's critical path.

@@ -1,6 +1,7 @@
 import type {
   Category,
   Dish,
+  DishModel,
   GuestOrder,
   Member,
   Order,
@@ -57,6 +58,10 @@ export interface Repository {
   listDishes(restaurantId: string): Promise<Dish[]>
   saveDish(dish: Omit<Dish, 'id'> & { id?: string }): Promise<Dish>
   deleteDish(id: string): Promise<void>
+  /** Attach, replace (model) or remove (null) a dish's 3D model. */
+  saveDishModel(dish: Pick<Dish, 'id' | 'restaurantId'>, model: DishModel | null): Promise<void>
+  /** Upload a media file to tenant storage; returns its public URL. Not available in demo mode. */
+  uploadMedia(restaurantId: string, file: File, folder: 'photos' | 'models' | 'brand'): Promise<string>
 
   // Tables
   listTables(restaurantId: string): Promise<RestaurantTable[]>

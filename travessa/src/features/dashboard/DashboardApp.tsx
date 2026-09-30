@@ -19,6 +19,7 @@ import { MenuPage } from './menu/MenuPage'
 import { SettingsPage } from './settings/SettingsPage'
 import { TeamPage } from './team/TeamPage'
 import { RoadmapPage } from './RoadmapPage'
+import { ModelsPage } from './models/ModelsPage'
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>
 interface NavItem { to: string; label: string; icon: Icon; phase?: string }
@@ -37,7 +38,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Menu',
     items: [
       { to: 'menu', label: 'Menu', icon: IconMenuBook },
-      { to: 'modelos-3d', label: 'Modelos 3D', icon: IconCube, phase: 'Fase 2' },
+      { to: 'modelos-3d', label: 'Modelos 3D', icon: IconCube },
     ],
   },
   {
@@ -201,6 +202,7 @@ function Shell() {
             <Route path="cozinha" element={<KitchenPage />} />
             <Route path="mesas" element={<TablesPage />} />
             <Route path="menu" element={<MenuPage />} />
+            <Route path="modelos-3d" element={<ModelsPage />} />
             <Route path="equipa" element={<TeamPage />} />
             <Route path="definicoes" element={<SettingsPage />} />
             <Route path=":module" element={<RoadmapPage />} />

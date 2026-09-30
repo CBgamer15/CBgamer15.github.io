@@ -4,17 +4,6 @@ import { Badge, PageHeader } from '@/components/ui'
 // Modules that are part of the platform but not built yet. Shown honestly, with
 // what they will do, so the sales conversation can include them.
 const MODULES: Record<string, { title: string; phase: string; lead: string; points: string[] }> = {
-  'modelos-3d': {
-    title: 'Modelos 3D',
-    phase: 'Fase 2',
-    lead: 'O prato em 3D, no telemóvel do cliente, antes de pedir.',
-    points: [
-      'Captura fotogramétrica feita pela equipa Travessa no restaurante',
-      'Visualizador 3D carregado só quando o cliente toca em “Ver em 3D”',
-      'Ficheiros GLB (Android/Web) e USDZ (iPhone) otimizados para rede móvel',
-      'Associação de cada modelo ao respetivo prato',
-    ],
-  },
   analises: {
     title: 'Análises',
     phase: 'Fase 3',

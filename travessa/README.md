@@ -36,7 +36,9 @@ In demo mode, "Repor demo" (the dashboard banner) restores the original Casa do 
    Then send the order.
 3. The kitchen chimes and the ticket appears. Tap **Começar → Marcar pronto → Marcar servido**.
    The phone updates live and ends with the Google review invitation.
-4. Open the dashboard. Under **Menu**, switch *Amêijoas* to "Esgotado", and the guest menu
+4. Back on the phone, open **Sobremesas → Pastel de nata** and tap **Ver em 3D**. The 3D code
+   and the model download only at that moment.
+5. Open the dashboard. Under **Menu**, switch *Amêijoas* to "Esgotado", and the guest menu
    updates instantly. Under **Mesas e QR**, print the table cards.
 
 ## Connect Supabase
@@ -59,6 +61,7 @@ npm test                       # domain unit tests (pricing, cart, order flow, f
 npm run build
 supabase/tests/run.sh          # migrations + RLS/security checks on a local Postgres
 node scripts/gen-seed.ts       # regenerate supabase/seed.sql from the demo seed
+node scripts/models/generate-models.ts   # rebuild the demo GLB models in public/models
 ```
 
 ## Documentation

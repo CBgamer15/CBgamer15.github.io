@@ -13,7 +13,7 @@ const JOURNEY = [
 const MODULES: [string, string, string][] = [
   ['Menu digital e QR por mesa', 'Disponível', 'ok'],
   ['Pedidos à mesa e ecrã de cozinha', 'Disponível', 'ok'],
-  ['Pratos em 3D', 'Fase 2', ''],
+  ['Pratos em 3D', 'Disponível', 'ok'],
   ['Análises do menu', 'Fase 3', ''],
   ['Assistente IA do menu', 'Fase 4', ''],
   ['Realidade aumentada', 'Fase 5', ''],

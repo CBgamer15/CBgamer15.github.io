@@ -6,6 +6,8 @@ import type { Category, Dish, OptionGroup, Restaurant, RestaurantTable } from '@
 export const DEMO_RESTAURANT_ID = '00000000-0000-4000-8000-00000000c0de'
 const R = DEMO_RESTAURANT_ID
 
+const model = (file: string, scale = 1) => ({ glbUrl: `/models/${file}.glb`, scale })
+
 const img = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1200&q=75`
 
 export const casaDoMar: Restaurant = {
@@ -143,6 +145,7 @@ export const dishes: Dish[] = [
     tags: ['popular', 'to_share'],
     pairing: 'Vinho Verde ou cerveja',
     prepMinutes: 8,
+    model: model('pasteis-de-bacalhau'),
   }),
   dish({
     categoryId: petiscos,
@@ -299,6 +302,8 @@ export const dishes: Dish[] = [
     tags: ['popular', 'vegetarian'],
     pairing: 'Café ou Porto Tawny',
     prepMinutes: 2,
+    model: model('pastel-de-nata'),
+    isFeatured: true,
   }),
   dish({
     categoryId: doces,
@@ -311,6 +316,7 @@ export const dishes: Dish[] = [
     tags: ['signature', 'gluten_free'],
     pairing: 'Porto Tawny 10 anos',
     prepMinutes: 2,
+    model: model('pudim-abade-de-priscos'),
   }),
   dish({
     categoryId: doces,

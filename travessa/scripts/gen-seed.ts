@@ -45,6 +45,13 @@ ${dishes
   .join(',\n')}
 on conflict (id) do nothing;
 
+insert into dish_models (restaurant_id, dish_id, glb_url, usdz_url, poster_url, scale) values
+${dishes
+  .filter((d) => d.model)
+  .map((d) => row([d.restaurantId, d.id, d.model!.glbUrl, d.model!.usdzUrl, d.model!.posterUrl, d.model!.scale]))
+  .join(',\n')}
+on conflict (dish_id) do nothing;
+
 insert into restaurant_tables (id, restaurant_id, label, area, seats, qr_token, is_active, position) values
 ${tables.map((t) => row([t.id, t.restaurantId, t.label, t.area, t.seats, t.qrToken, t.isActive, t.position])).join(',\n')}
 on conflict (id) do nothing;

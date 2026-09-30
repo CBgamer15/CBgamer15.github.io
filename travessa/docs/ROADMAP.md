@@ -23,13 +23,20 @@ The goal is a demo that sells: QR → menu → dish → cart → order → kitch
 - [x] Overview: today's orders, revenue, AOV, prep time, orders per hour, top dishes
 - [x] Demo mode (no backend) and the `/demo` sales stage (phone + kitchen side by side)
 
-## Phase 2 — 3D food
+## Phase 2 — 3D food ✅
 
-- `dish_models` table + storage (`<restaurant_id>/models/…`)
-- Dish sheet shows "Ver em 3D" only when a model exists; the viewer chunk loads on tap
-- Orbit, pinch zoom and auto-rotate, with a poster image while loading and progress feedback
-- Dashboard "Modelos 3D" page: attach GLB/USDZ, scale and preview
-- 3D badges on menu rows
+- [x] `dish_models` table with tenant check trigger, RLS and realtime (`0002_dish_models.sql`)
+- [x] "Ver em 3D" on dishes that have a model. The viewer and Three.js are a separate chunk.
+      The GLB and the viewer code are requested **only on tap**, which is verified in the
+      browser: zero 3D requests while browsing the menu.
+- [x] Viewer: orbit, pinch zoom and auto-rotate; studio light formers (no HDR download);
+      contact shadows; auto-fit; load progress; error fallback
+- [x] 3D badges on menu rows and featured cards
+- [x] Dashboard "Modelos 3D": coverage, list, GLB/USDZ/poster/scale editor with live preview,
+      file-size check (5 MB mobile budget), direct upload to Supabase Storage
+- [x] Three demo models (pastel de nata, pudim Abade de Priscos, pastéis de bacalhau), built
+      procedurally as real GLBs by `scripts/models/generate-models.ts`. Production models come
+      from photogrammetry and go through the same pipeline.
 
 ## Phase 3 — Analytics
 

@@ -107,4 +107,28 @@ do $$ begin
   end;
 end $$;
 select number, status from orders;
+
+-- Phase 2: dish models are tenant-scoped.
+insert into dish_models (restaurant_id, dish_id, glb_url) values (:'rid', :'did', '/models/x.glb');
+set request.jwt.claim.sub = '22222222-2222-2222-2222-222222222222';
+update dish_models set glb_url = '/evil.glb';
+reset request.jwt.claim.sub;
+reset role;
+do $$ begin
+  if exists (select 1 from dish_models where glb_url = '/evil.glb') then raise exception 'B edited A model'; end if;
+end $$;
+set role anon;
+do $$ begin
+  if (select count(*) from dish_models) <> 1 then raise exception 'anon cannot read published model'; end if;
+end $$;
+reset role;
+do $$ begin
+  begin
+    insert into dish_models (restaurant_id, dish_id, glb_url)
+      select gen_random_uuid(), id, '/x.glb' from dishes limit 1;
+    raise exception 'cross-tenant model accepted';
+  exception when others then
+    if sqlerrm = 'cross-tenant model accepted' then raise; end if;
+  end;
+end $$;
 \echo ALL RLS CHECKS PASSED

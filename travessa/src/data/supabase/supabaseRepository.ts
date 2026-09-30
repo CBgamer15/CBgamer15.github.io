@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type {
   Category,
   Dish,
+  DishModel,
   GuestOrder,
   Member,
   Order,
@@ -71,11 +72,17 @@ const toDish = (r: any): Dish => ({
   options: r.options ?? [],
   pairing: r.pairing ?? undefined,
   prepMinutes: r.prep_minutes ?? undefined,
+  model: toModel(Array.isArray(r.dish_models) ? r.dish_models[0] : r.dish_models),
   isAvailable: r.is_available,
   isFeatured: r.is_featured,
   isArchived: r.is_archived,
   position: r.position,
 })
+
+const toModel = (m: any): DishModel | undefined =>
+  m && m.is_published !== false
+    ? { glbUrl: m.glb_url, usdzUrl: m.usdz_url ?? undefined, posterUrl: m.poster_url ?? undefined, scale: m.scale ?? 1, sizeBytes: m.size_bytes ?? undefined }
+    : undefined
 
 const fromDish = (d: Omit<Dish, 'id'> & { id?: string }) => ({
   ...(d.id ? { id: d.id } : {}),
@@ -233,11 +240,39 @@ export class SupabaseRepository implements Repository {
   }
 
   async listDishes(restaurantId: string) {
-    return (check(await this.sb.from('dishes').select().eq('restaurant_id', restaurantId).order('position')) as any[]).map(toDish)
+    return (check(await this.sb.from('dishes').select('*, dish_models(*)').eq('restaurant_id', restaurantId).order('position')) as any[]).map(toDish)
   }
 
   async saveDish(d: Omit<Dish, 'id'> & { id?: string }) {
-    return toDish(check(await this.sb.from('dishes').upsert(fromDish(d)).select().single()))
+    return toDish(check(await this.sb.from('dishes').upsert(fromDish(d)).select('*, dish_models(*)').single()))
+  }
+
+  async saveDishModel(dish: Pick<Dish, 'id' | 'restaurantId'>, model: DishModel | null) {
+    if (!model) {
+      check(await this.sb.from('dish_models').delete().eq('dish_id', dish.id))
+      return
+    }
+    check(
+      await this.sb.from('dish_models').upsert(
+        {
+          restaurant_id: dish.restaurantId,
+          dish_id: dish.id,
+          glb_url: model.glbUrl,
+          usdz_url: model.usdzUrl ?? null,
+          poster_url: model.posterUrl ?? null,
+          scale: model.scale,
+          size_bytes: model.sizeBytes ?? null,
+        },
+        { onConflict: 'dish_id' },
+      ),
+    )
+  }
+
+  async uploadMedia(restaurantId: string, file: File, folder: 'photos' | 'models' | 'brand') {
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
+    const path = `${restaurantId}/${folder}/${crypto.randomUUID()}.${ext}`
+    check(await this.sb.storage.from('restaurant-media').upload(path, file, { cacheControl: '31536000', upsert: false }))
+    return this.sb.storage.from('restaurant-media').getPublicUrl(path).data.publicUrl
   }
 
   async deleteDish(id: string) {
@@ -297,9 +332,11 @@ export class SupabaseRepository implements Repository {
   }
 
   subscribeMenu(restaurantId: string, onChange: () => void): Unsubscribe {
+    const filter = `restaurant_id=eq.${restaurantId}`
     const channel = this.sb
       .channel(`menu:${restaurantId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `restaurant_id=eq.${restaurantId}` }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dish_models', filter }, onChange)
       .subscribe()
     return () => void this.sb.removeChannel(channel)
   }

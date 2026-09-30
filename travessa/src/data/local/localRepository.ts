@@ -1,6 +1,7 @@
 import type {
   Category,
   Dish,
+  DishModel,
   GuestOrder,
   Member,
   MemberRole,
@@ -26,7 +27,7 @@ import { buildSeed, DEMO_USER } from './seed'
  * It enforces the same rules as the SQL functions (pricing, transitions, tenancy).
  */
 
-const DB_KEY = 'travessa:demo-db:v1'
+const DB_KEY = 'travessa:demo-db:v2'
 const SESSION_KEY = 'travessa:demo-session:v1'
 const CHANNEL = 'travessa-demo'
 
@@ -289,6 +290,20 @@ export class LocalRepository implements Repository {
     if (!d) return
     this.requireRole(d.restaurantId, ['owner', 'manager'])
     this.write((db) => void (db.dishes = db.dishes.filter((x) => x.id !== id)))
+  }
+
+  async saveDishModel(dish: Pick<Dish, 'id' | 'restaurantId'>, model: DishModel | null): Promise<void> {
+    this.requireRole(dish.restaurantId, ['owner', 'manager'])
+    this.write((db) => {
+      const d = db.dishes.find((x) => x.id === dish.id && x.restaurantId === dish.restaurantId)
+      if (!d) throw new Error('Prato não encontrado')
+      if (model) d.model = model
+      else delete d.model
+    })
+  }
+
+  async uploadMedia(): Promise<string> {
+    throw new Error('O carregamento de ficheiros precisa do Supabase. Em modo demonstração, use um URL.')
   }
 
   // --- tables --------------------------------------------------------------

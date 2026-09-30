@@ -139,7 +139,8 @@ export function MenuPage() {
                         {selected === 'all' && <span className="text-xs text-mute">{categories.find((c) => c.id === d.categoryId)?.name}</span>}
                         {d.isFeatured && <Badge tone="brand">Destaque</Badge>}
                         {d.tags.filter((t) => t !== 'signature').slice(0, 3).map((t) => <Badge key={t}>{tagLabel[t]}</Badge>)}
-                        {d.options.length > 0 && <Badge tone="info">{d.options.length} opções</Badge>}
+                        {d.options.length > 0 && <Badge tone="info">{d.options.length} {d.options.length === 1 ? 'opção' : 'opções'}</Badge>}
+                        {d.model && <Badge tone="ok">3D</Badge>}
                         {!d.imageUrl && <Badge tone="warn">Sem foto</Badge>}
                       </div>
                     </button>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Dish, DishTag } from '@/domain/types'
 import { DishImage } from '@/components/DishImage'
-import { IconFlame, IconLeaf, IconReceipt } from '@/components/icons'
+import { IconCube, IconFlame, IconLeaf, IconReceipt } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import { useGuest } from './GuestContext'
 import { DishSheet } from './DishSheet'
@@ -109,7 +109,10 @@ export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
           <div className="scrollbar-none mt-4 flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-1">
             {featured.map((d) => (
               <button key={d.id} onClick={() => setOpenDish(d)} className="w-60 shrink-0 snap-start text-left">
-                <DishImage src={d.imageUrl} alt={d.name} className="aspect-[4/3] w-full rounded-md" />
+                <div className="relative">
+                  <DishImage src={d.imageUrl} alt={d.name} className="aspect-[4/3] w-full rounded-md" />
+                  {d.model && <ThreeDMark />}
+                </div>
                 <p className="mt-2.5 text-[15px] leading-snug font-medium">{d.name}</p>
                 <p className="mt-0.5 text-sm text-ink-2 tabular">{money(d.priceCents)}</p>
               </button>
@@ -190,8 +193,26 @@ function DishRow({ dish, onOpen }: { dish: Dish; onOpen: () => void }) {
           ))}
         </div>
       </div>
-      {dish.imageUrl && <DishImage src={dish.imageUrl} alt={dish.name} className="size-24 shrink-0 rounded-md" />}
+      {dish.imageUrl && (
+        <div className="relative shrink-0">
+          <DishImage src={dish.imageUrl} alt={dish.name} className="size-24 rounded-md" />
+          {dish.model && <ThreeDMark small />}
+        </div>
+      )}
     </button>
+  )
+}
+
+function ThreeDMark({ small }: { small?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'absolute flex items-center gap-1 rounded-full bg-ink/85 font-medium text-paper backdrop-blur',
+        small ? 'bottom-1.5 left-1.5 px-1.5 py-0.5 text-[10px]' : 'bottom-2.5 left-2.5 px-2 py-1 text-[11px]',
+      )}
+    >
+      <IconCube width={small ? 11 : 13} height={small ? 11 : 13} /> 3D
+    </span>
   )
 }
 

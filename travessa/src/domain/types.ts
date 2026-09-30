@@ -61,6 +61,16 @@ export interface OptionGroup {
   choices: OptionChoice[]
 }
 
+/** A dish's 3D asset. Loaded only when a guest asks for it. */
+export interface DishModel {
+  glbUrl: string
+  usdzUrl?: string
+  posterUrl?: string
+  /** Multiplier on the model's native metres (real-world size in AR). */
+  scale: number
+  sizeBytes?: number
+}
+
 export interface Dish {
   id: string
   restaurantId: string
@@ -76,6 +86,7 @@ export interface Dish {
   options: OptionGroup[]
   pairing?: string
   prepMinutes?: number
+  model?: DishModel
   isAvailable: boolean
   isFeatured: boolean
   isArchived: boolean
