@@ -1,5 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { dishLink, quickLookHref, sceneViewerHref } from './ar'
+import { detectArMode, dishLink, iosNeedsSafari, quickLookHref, sceneViewerHref } from './ar'
+
+const UA = {
+  iphoneSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1',
+  iphoneChrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0 Mobile/15E148 Safari/604.1',
+  iphoneInApp: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+  iphoneInstagram: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 390.0',
+  ipadOs: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+  android: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Mobile Safari/537.36',
+  laptop: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36',
+}
+
+describe('AR mode detection', () => {
+  it('never shows the "scan with your phone" QR on an iPhone, whatever the browser', () => {
+    for (const ua of [UA.iphoneSafari, UA.iphoneChrome, UA.iphoneInApp, UA.iphoneInstagram]) {
+      expect(detectArMode({ userAgent: ua, supportsRelAr: false })).toBe('quicklook')
+    }
+    expect(detectArMode({ userAgent: UA.ipadOs, platform: 'MacIntel', maxTouchPoints: 5 })).toBe('quicklook')
+  })
+
+  it('asks for Safari only outside Safari', () => {
+    expect(iosNeedsSafari({ userAgent: UA.iphoneSafari })).toBe(false)
+    expect(iosNeedsSafari({ userAgent: UA.iphoneChrome })).toBe(true)
+    expect(iosNeedsSafari({ userAgent: UA.iphoneInApp })).toBe(true)
+    expect(iosNeedsSafari({ userAgent: UA.iphoneInstagram })).toBe(true)
+    // If the browser itself says it can do Quick Look, trust it.
+    expect(iosNeedsSafari({ userAgent: UA.iphoneInApp, supportsRelAr: true })).toBe(false)
+  })
+
+  it('uses Scene Viewer on Android and the QR hand-off only on a computer', () => {
+    expect(detectArMode({ userAgent: UA.android })).toBe('scene-viewer')
+    expect(detectArMode({ userAgent: UA.laptop, platform: 'Win32', maxTouchPoints: 0 })).toBe('handoff')
+    expect(detectArMode({ userAgent: UA.ipadOs, platform: 'MacIntel', maxTouchPoints: 0 })).toBe('handoff') // real Mac
+  })
+})
 
 const model = { glbUrl: '/models/pastel-de-nata.glb', usdzUrl: '/models/pastel-de-nata.usdz', scale: 1 }
 

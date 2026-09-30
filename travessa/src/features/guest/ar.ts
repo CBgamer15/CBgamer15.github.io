@@ -8,13 +8,47 @@ import type { DishModel } from '@/domain/types'
 
 export type ArMode = 'quicklook' | 'scene-viewer' | 'handoff'
 
-export function detectArMode(): ArMode {
-  if (typeof document === 'undefined') return 'handoff'
+interface Env {
+  userAgent: string
+  platform?: string
+  maxTouchPoints?: number
+  supportsRelAr?: boolean
+}
+
+function currentEnv(): Env {
   const a = document.createElement('a')
-  if (a.relList?.supports?.('ar')) return 'quicklook'
-  if (/android/i.test(navigator.userAgent)) return 'scene-viewer'
+  return {
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints,
+    supportsRelAr: Boolean(a.relList?.supports?.('ar')),
+  }
+}
+
+/** iPhone/iPad, including iPadOS which reports itself as a Mac. */
+export function isIOS(env: Env): boolean {
+  return /iPad|iPhone|iPod/.test(env.userAgent) || (env.platform === 'MacIntel' && (env.maxTouchPoints ?? 0) > 1)
+}
+
+/**
+ * Only Safari reliably launches AR Quick Look. Chrome/Firefox/Edge on iOS and the
+ * in-app browsers of other apps (Instagram, Facebook, chat apps…) often don't.
+ */
+export function iosNeedsSafari(env: Env): boolean {
+  if (!isIOS(env) || env.supportsRelAr) return false
+  const ua = env.userAgent
+  return /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|Instagram|FBAN|FBAV|Line\/|WhatsApp/.test(ua) || !/Safari\//.test(ua)
+}
+
+export function detectArMode(env: Env = currentEnv()): ArMode {
+  // Any iPhone/iPad gets the Quick Look link: a phone must never be shown the
+  // "scan with your phone" QR, even in browsers that don't advertise rel="ar".
+  if (env.supportsRelAr || isIOS(env)) return 'quicklook'
+  if (/android/i.test(env.userAgent)) return 'scene-viewer'
   return 'handoff'
 }
+
+export { currentEnv }
 
 const absolute = (url: string) => new URL(url, window.location.href).href
 
