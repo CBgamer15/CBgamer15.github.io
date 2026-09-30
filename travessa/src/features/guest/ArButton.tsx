@@ -107,7 +107,17 @@ export function ArButton({ dish }: { dish: Dish }) {
               <CameraAr
                 model={model}
                 gyro={camera.gyro}
-                labels={{ hint: t.camHint, noCamera: t.camNoCamera, loading: t.camLoading, close: 'Fechar', fullAr: t.camFullAr }}
+                labels={{
+                  aim: t.camAim,
+                  place: t.camPlace,
+                  placed: t.camPlaced,
+                  lost: t.camLost,
+                  flat: t.camFlat,
+                  move: t.camMove,
+                  noCamera: t.camNoCamera,
+                  loading: t.camLoading,
+                  close: 'Fechar',
+                }}
                 onClose={() => setCamera(null)}
                 footer={
                   <button
