@@ -24,6 +24,8 @@ describe('AR mode detection', () => {
     expect(iosNeedsSafari({ userAgent: UA.iphoneChrome })).toBe(true)
     expect(iosNeedsSafari({ userAgent: UA.iphoneInApp })).toBe(true)
     expect(iosNeedsSafari({ userAgent: UA.iphoneInstagram })).toBe(true)
+    // Brave on iOS looks like Safari (and claims rel="ar") but re-downloads the model every time.
+    expect(iosNeedsSafari({ userAgent: UA.iphoneSafari, supportsRelAr: true, isBrave: true })).toBe(true)
     // If the browser itself says it can do Quick Look, trust it.
     expect(iosNeedsSafari({ userAgent: UA.iphoneInApp, supportsRelAr: true })).toBe(false)
   })

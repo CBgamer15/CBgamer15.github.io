@@ -13,6 +13,8 @@ interface Env {
   platform?: string
   maxTouchPoints?: number
   supportsRelAr?: boolean
+  /** Brave identifies as Safari on iOS but exposes navigator.brave. */
+  isBrave?: boolean
 }
 
 function currentEnv(): Env {
@@ -22,6 +24,7 @@ function currentEnv(): Env {
     platform: navigator.platform,
     maxTouchPoints: navigator.maxTouchPoints,
     supportsRelAr: Boolean(a.relList?.supports?.('ar')),
+    isBrave: 'brave' in navigator,
   }
 }
 
@@ -35,7 +38,10 @@ export function isIOS(env: Env): boolean {
  * in-app browsers of other apps (Instagram, Facebook, chat apps…) often don't.
  */
 export function iosNeedsSafari(env: Env): boolean {
-  if (!isIOS(env) || env.supportsRelAr) return false
+  if (!isIOS(env)) return false
+  // Brave reports rel="ar" support, but re-downloads the model on every tap.
+  if (env.isBrave) return true
+  if (env.supportsRelAr) return false
   const ua = env.userAgent
   return /CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|Instagram|FBAN|FBAV|Line\/|WhatsApp/.test(ua) || !/Safari\//.test(ua)
 }
