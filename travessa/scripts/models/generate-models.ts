@@ -4,6 +4,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs'
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
+import { exportUsdz } from './usdz.ts'
 
 // --- Node shims for GLTFExporter (binary path uses FileReader) --------------
 class FileReaderShim {
@@ -130,7 +131,7 @@ function pastelDeNata() {
 
   // Custard top with caramelised blisters: a dense polar grid carries the colour detail.
   const rings = 60, segs = 192
-  const verts: number[] = [], idx: number[] = []
+  const verts: number[] = [], uvs: number[] = [], idx: number[] = []
   for (let i = 0; i <= rings; i++)
     for (let j = 0; j <= segs; j++) {
       const r = (i / rings) * R * 0.9
@@ -139,6 +140,8 @@ function pastelDeNata() {
       const dome = 0.0068 * (1 - (r / (R * 0.9)) ** 2)
       const blister = 0.0014 * Math.max(0, fbm(x * 260, 0, z * 260, 5) - 0.45)
       verts.push(x, 0.0192 + dome + blister, z)
+      // Planar UVs (top view) so the colour can be baked to a texture for iOS.
+      uvs.push(0.5 + x / (2 * R * 0.9), 0.5 - z / (2 * R * 0.9))
     }
   for (let i = 0; i < rings; i++)
     for (let j = 0; j < segs; j++) {
@@ -148,6 +151,7 @@ function pastelDeNata() {
     }
   const custard = new THREE.BufferGeometry()
   custard.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3))
+  custard.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
   custard.setIndex(idx)
   paint(custard, (p) => {
     const r = Math.hypot(p.x, p.z) / (R * 0.9)
@@ -268,18 +272,21 @@ function pasteisDeBacalhau() {
 }
 
 // --- export -----------------------------------------------------------------
-async function exportGlb(name: string, object: THREE.Object3D) {
+// GLB: web viewer + Android Scene Viewer (vertex colours).
+// USDZ: iPhone AR Quick Look (colours baked to textures). Both in metres = real size.
+async function exportModel(name: string, object: THREE.Object3D) {
+  const usdz = await exportUsdz(object, (mesh) => (mesh.name === 'creme' ? 1024 : 512))
+  writeFileSync(new URL(`../../public/models/${name}.usdz`, import.meta.url), usdz)
+
   const scene = new THREE.Scene()
   scene.name = name
   scene.add(object)
-  const exporter = new GLTFExporter()
-  const glb = (await exporter.parseAsync(scene, { binary: true })) as ArrayBuffer
-  const out = new URL(`../../public/models/${name}.glb`, import.meta.url)
-  writeFileSync(out, Buffer.from(glb))
-  console.log(`${name}.glb  ${(glb.byteLength / 1024).toFixed(0)} kB`)
+  const glb = (await new GLTFExporter().parseAsync(scene, { binary: true })) as ArrayBuffer
+  writeFileSync(new URL(`../../public/models/${name}.glb`, import.meta.url), Buffer.from(glb))
+  console.log(`${name}  glb ${(glb.byteLength / 1024).toFixed(0)} kB · usdz ${(usdz.byteLength / 1024).toFixed(0)} kB`)
 }
 
 mkdirSync(new URL('../../public/models/', import.meta.url), { recursive: true })
-await exportGlb('pastel-de-nata', pastelDeNata())
-await exportGlb('pudim-abade-de-priscos', pudim())
-await exportGlb('pasteis-de-bacalhau', pasteisDeBacalhau())
+await exportModel('pastel-de-nata', pastelDeNata())
+await exportModel('pudim-abade-de-priscos', pudim())
+await exportModel('pasteis-de-bacalhau', pasteisDeBacalhau())

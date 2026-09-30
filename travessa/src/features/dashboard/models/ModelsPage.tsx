@@ -86,7 +86,7 @@ export function ModelsPage() {
             {d.model ? (
               <div className="flex items-center gap-2">
                 <Badge tone="ok"><IconCube width={12} height={12} /> 3D ativo</Badge>
-                {d.model.usdzUrl ? <Badge>iPhone RA</Badge> : <Badge tone="warn">Sem USDZ</Badge>}
+                {d.model.usdzUrl ? <Badge>RA iPhone + Android</Badge> : <Badge tone="warn">RA só Android</Badge>}
               </div>
             ) : (
               <Badge>Sem modelo</Badge>
@@ -212,7 +212,7 @@ function ModelEditor({ dish, onClose, onSaved }: { dish: Dish; onClose: () => vo
           </div>
           {fileField('glbUrl', '.glb,model/gltf-binary')}
         </Field>
-        <Field label="Modelo USDZ (opcional)" hint="Necessário para “Ver na minha mesa” no iPhone (Fase 5).">
+        <Field label="Modelo USDZ (opcional)" hint="Necessário para “Ver na minha mesa” no iPhone (AR Quick Look). No Android basta o GLB.">
           <Input value={draft.usdzUrl ?? ''} onChange={(e) => setDraft({ ...draft, usdzUrl: e.target.value.trim() || undefined })} placeholder="https://…/prato.usdz" />
           {fileField('usdzUrl', '.usdz,model/vnd.usdz+zip')}
         </Field>

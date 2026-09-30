@@ -77,7 +77,7 @@ function Report({ r, money }: { r: AnalyticsReport; money: (c: number) => string
   const tiles: [string, string, string?][] = [
     ['Visitas ao menu', fmt(r.sessions), `${fmt(r.menuViews)} aberturas`],
     ['Pratos vistos', fmt(r.dishViews)],
-    ['Vistas em 3D', fmt(r.modelViews), r.arViews ? `${fmt(r.arViews)} em RA` : 'RA na Fase 5'],
+    ['Vistas em 3D', fmt(r.modelViews), `${fmt(r.arViews)} na mesa (RA)`],
     ['Adições ao pedido', fmt(r.addToCart)],
     ['Pedidos', fmt(r.orders)],
     ['Conversão', pct(r.conversion), 'Visitas que terminam em pedido'],

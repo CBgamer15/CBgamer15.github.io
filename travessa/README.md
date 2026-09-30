@@ -41,6 +41,26 @@ In demo mode, "Repor demo" (the dashboard banner) restores the original Casa do 
 5. Open the dashboard. Under **Menu**, switch *Amêijoas* to "Esgotado", and the guest menu
    updates instantly. Under **Mesas e QR**, print the table cards.
 
+### Try AR on your phone
+
+AR hands the dish to the phone's own viewer, so the phone must be able to download the model
+over **public HTTPS**. `localhost` on a laptop won't work. Two ways to get a public URL:
+
+- **Deploy.** Import `travessa/` into Vercel (framework: Vite, root: `travessa`). `vercel.json`
+  already sends the MIME type Quick Look needs for `.usdz`.
+- **Tunnel for a quick test.** Run `npm run dev -- --host` and expose port 5173 with a tunnel
+  that serves HTTPS (for example `cloudflared tunnel --url http://localhost:5173`).
+
+Then, on the phone, open `https://<your-url>/m/casa-do-mar/t/Hd2vP9qMx4Ls`, choose
+**Sobremesas → Pastel de nata** (or *Pudim* / *Pastéis de bacalhau*) and tap
+**Ver na minha mesa**:
+
+- **iPhone (Safari):** AR Quick Look opens. Point at the table and the pastel de nata appears
+  at real size, about 7 cm.
+- **Android (Chrome, ARCore phone):** Scene Viewer opens in AR. Without ARCore it shows the 3D
+  view instead.
+- **Laptop:** you get a QR code. Scan it and the same dish opens on your phone.
+
 ## Connect Supabase
 
 1. Create a Supabase project.

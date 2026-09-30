@@ -47,9 +47,9 @@ insert into dishes (id, restaurant_id, category_id, name, description, price_cen
 on conflict (id) do nothing;
 
 insert into dish_models (restaurant_id, dish_id, glb_url, usdz_url, poster_url, scale) values
-  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1003', '/models/pasteis-de-bacalhau.glb', null, null, 1),
-  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1015', '/models/pastel-de-nata.glb', null, null, 1),
-  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1016', '/models/pudim-abade-de-priscos.glb', null, null, 1)
+  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1003', '/models/pasteis-de-bacalhau.glb', '/models/pasteis-de-bacalhau.usdz', null, 1),
+  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1015', '/models/pastel-de-nata.glb', '/models/pastel-de-nata.usdz', null, 1),
+  ('00000000-0000-4000-8000-00000000c0de', '00000000-0000-4000-8000-0000000d1016', '/models/pudim-abade-de-priscos.glb', '/models/pudim-abade-de-priscos.usdz', null, 1)
 on conflict (dish_id) do nothing;
 
 insert into restaurant_tables (id, restaurant_id, label, area, seats, qr_token, is_active, position) values

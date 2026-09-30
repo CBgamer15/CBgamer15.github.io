@@ -6,7 +6,7 @@ import type { Category, Dish, OptionGroup, Restaurant, RestaurantTable } from '@
 export const DEMO_RESTAURANT_ID = '00000000-0000-4000-8000-00000000c0de'
 const R = DEMO_RESTAURANT_ID
 
-const model = (file: string, scale = 1) => ({ glbUrl: `/models/${file}.glb`, scale })
+const model = (file: string, scale = 1) => ({ glbUrl: `/models/${file}.glb`, usdzUrl: `/models/${file}.usdz`, scale })
 
 const img = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1200&q=75`
 

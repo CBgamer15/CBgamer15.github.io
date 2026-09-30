@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { Dish, DishTag } from '@/domain/types'
 import { DishImage } from '@/components/DishImage'
 import { IconCube, IconFlame, IconLeaf, IconReceipt } from '@/components/icons'
@@ -25,6 +25,23 @@ export function MenuScreen({ tableInvalid }: { tableInvalid: boolean }) {
     [menu],
   )
   useEffect(() => track('menu_view'), [track])
+
+  // ?prato=<id> opens a dish directly (the "continue on your phone" QR for AR).
+  const [params, setParams] = useSearchParams()
+  const deepLinked = params.get('prato')
+  useEffect(() => {
+    if (!deepLinked) return
+    const d = menu.dishes.find((x) => x.id === deepLinked)
+    if (d) {
+      track('dish_view', d.id)
+      setOpenDish(d)
+    }
+    setParams((p) => {
+      p.delete('prato')
+      return p
+    }, { replace: true })
+  }, [deepLinked, menu.dishes, track, setParams])
+
   const openDishSheet = (d: Dish) => {
     track('dish_view', d.id)
     setOpenDish(d)

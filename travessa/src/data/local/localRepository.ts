@@ -28,7 +28,7 @@ import { buildSeed, DEMO_USER } from './seed'
  * It enforces the same rules as the SQL functions (pricing, transitions, tenancy).
  */
 
-const DB_KEY = 'travessa:demo-db:v3'
+const DB_KEY = 'travessa:demo-db:v4'
 // Keep the browser store bounded (localStorage is ~5 MB).
 const MAX_EVENTS = 25000
 const SESSION_KEY = 'travessa:demo-session:v1'

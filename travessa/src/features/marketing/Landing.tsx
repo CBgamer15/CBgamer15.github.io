@@ -16,7 +16,7 @@ const MODULES: [string, string, string][] = [
   ['Pratos em 3D', 'Disponível', 'ok'],
   ['Análises do menu', 'Disponível', 'ok'],
   ['Assistente IA do menu', 'Fase 4', ''],
-  ['Realidade aumentada', 'Fase 5', ''],
+  ['Realidade aumentada', 'Disponível', 'ok'],
   ['Reservas e avaliações Google', 'Fase 6', ''],
   ['Automação WhatsApp', 'Fase 7', ''],
 ]

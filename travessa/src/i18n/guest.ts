@@ -49,6 +49,8 @@ const pt = {
   error3d: 'Não foi possível abrir o modelo 3D. Tente novamente com melhor rede.',
   hint3d: 'Arraste para rodar',
   viewAr: 'Ver na minha mesa',
+  arHandoffTitle: 'Abra no telemóvel',
+  arHandoffBody: 'Aponte a câmara do telemóvel para este código: o prato abre pronto para o ver, em tamanho real, na sua mesa.',
   status: {
     received: 'Recebido',
     preparing: 'Em preparação',
@@ -128,6 +130,8 @@ const en: GuestStrings = {
   error3d: "Couldn't open the 3D model. Please try again on a better connection.",
   hint3d: 'Drag to rotate',
   viewAr: 'See it on my table',
+  arHandoffTitle: 'Open on your phone',
+  arHandoffBody: "Point your phone's camera at this code: the dish opens ready to see at real size on your table.",
   status: { received: 'Received', preparing: 'Preparing', ready: 'Ready', served: 'Served', cancelled: 'Cancelled' },
   statusLine: {
     received: 'The kitchen has your order.',

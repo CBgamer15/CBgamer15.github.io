@@ -61,10 +61,23 @@ The goal is a demo that sells: QR → menu → dish → cart → order → kitch
 - Output validation against real dish IDs and allergen data
 - Guest chat entry point in the menu; queries logged as analytics events
 
-## Phase 5 — AR
+## Phase 5 — AR ✅ (built before Phase 4, on request)
 
-- "Ver na minha mesa": USDZ → iOS Quick Look, GLB → Android Scene Viewer / WebXR
-- Real-world scale per model
+- [x] "Ver na minha mesa" on every dish that has a model. No AR library ships to the guest;
+      each platform's native viewer does the work:
+  - iPhone/iPad → AR Quick Look (`<a rel="ar">` to the USDZ, `allowsContentScaling=0`)
+  - Android → Google Scene Viewer intent (`ar_preferred`, `resizable=false`) with a
+    browser fallback
+  - laptop → QR hand-off that reopens the same dish (and table) on a phone via `?prato=`
+- [x] The models are authored in metres and anchored to horizontal planes, so the dish appears
+      at real size on the table
+- [x] `generate-models.ts` also exports USDZ. Vertex colours are baked into PNG textures,
+      because Quick Look ignores vertex colours. The baked textures were checked in the
+      browser against the GLB.
+- [x] `ar_view` analytics event; the dashboard shows AR coverage per dish
+- [x] `vercel.json` serves `.usdz` as `model/vnd.usdz+zip`, which Quick Look requires
+- Not verified here: on-device AR needs a real iPhone or Android phone and a public HTTPS
+  URL. See "Try AR on your phone" in the README.
 
 ## Phase 6 — Reservations and reviews
 

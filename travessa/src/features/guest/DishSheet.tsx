@@ -7,6 +7,7 @@ import { Stepper } from '@/components/Stepper'
 import { IconClock, IconClose, IconCube } from '@/components/icons'
 import { cn } from '@/lib/cn'
 import { useGuest } from './GuestContext'
+import { ArButton } from './ArButton'
 
 const loadViewer = () => import('@/features/three/ModelViewer')
 const ModelViewer = lazy(loadViewer)
@@ -57,8 +58,13 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
           >
             <IconClose width={18} height={18} />
           </button>
+          {dish.model && show3d && (
+            <span className="pointer-events-none absolute top-4 left-3 rounded-full bg-paper/90 px-3 py-1.5 text-[11px] whitespace-nowrap text-ink-2 backdrop-blur">
+              {t.hint3d}
+            </span>
+          )}
           {dish.model && (
-            <div className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-3">
+            <div className="absolute inset-x-3 bottom-3 flex flex-wrap items-end gap-2">
               <button
                 // Start fetching the viewer code on touch-down: a small head start, still only on request.
                 onPointerDown={() => void loadViewer()}
@@ -71,7 +77,7 @@ export function DishSheet({ dish, canOrder, onClose }: { dish: Dish; canOrder: b
                 <IconCube width={18} height={18} />
                 {show3d ? t.viewPhoto : t.view3d}
               </button>
-              {show3d && <span className="rounded-full bg-paper/90 px-3 py-1.5 text-[11px] whitespace-nowrap text-ink-2 backdrop-blur">{t.hint3d}</span>}
+              <ArButton dish={dish} />
             </div>
           )}
         </div>
