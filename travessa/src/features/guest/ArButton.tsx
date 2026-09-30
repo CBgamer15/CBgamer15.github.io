@@ -35,19 +35,27 @@ export function ArButton({ dish }: { dish: Dish }) {
   const needsSafari = iosNeedsSafari(env)
   const model = dish.model
 
-  // iPhone: once the guest opens a dish that has AR, fetch its USDZ quietly in the
-  // background so Quick Look opens straight away when they tap. Only on iOS Safari
-  // and only for the dish they are looking at; the menu itself still loads no 3D.
+  // iPhone: once the guest opens a dish that has AR, load its USDZ into memory and
+  // hand Quick Look a blob: URL. Quick Look ignores the browser cache, so a normal
+  // link downloads the model again on every tap; a blob is handed over instantly.
+  // Only on iOS Safari and only for the dish being looked at; the menu loads no 3D.
   const usdz = mode === 'quicklook' && !needsSafari ? model?.usdzUrl : undefined
+  const [blobUrl, setBlobUrl] = useState<string>()
   useEffect(() => {
     if (!usdz) return
     const ctrl = new AbortController()
-    const id = window.setTimeout(() => {
-      void fetch(usdz, { signal: ctrl.signal, cache: 'force-cache' }).catch(() => undefined)
-    }, 400)
+    let objectUrl: string | undefined
+    void fetch(usdz, { signal: ctrl.signal })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(new Blob([blob], { type: 'model/vnd.usdz+zip' }))
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => undefined) // falls back to the network link
     return () => {
-      window.clearTimeout(id)
       ctrl.abort()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      setBlobUrl(undefined)
     }
   }, [usdz])
 
@@ -56,8 +64,9 @@ export function ArButton({ dish }: { dish: Dish }) {
   const onOpen = () => track('ar_view', dish.id)
 
   if (mode === 'quicklook') {
-    const href = quickLookHref(model)
-    if (!href) return null
+    const networkHref = quickLookHref(model)
+    if (!networkHref) return null
+    const href = blobUrl ? `${blobUrl}#allowsContentScaling=0` : networkHref
     // Safari only launches Quick Look for rel="ar" links that contain an image.
     const quickLook = (className: string, label: string) => (
       <a rel="ar" href={href} onClick={onOpen} className={className}>
